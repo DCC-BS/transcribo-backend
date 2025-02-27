@@ -1,19 +1,19 @@
 {
-  "files.exclude": {
-    "**/.DS_Store": true,
-    "**/.git": true,
-    "**/.hg": true,
-    "**/.mypy_cache": true,
-    "**/.pytest_cache": true,
-    "**/.svn": true,
-    "**/.venv": true,
-    "**/CVS": true,
-    "**/Thumbs.db": true,
-    "**/__pycache__": true
-  },
-  "python.testing.pytestArgs": [
-    "tests"
-  ],
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestEnabled": false
+    "files.exclude": {
+        "**/.DS_Store": true,
+        "**/.git": true,
+        "**/.hg": true,
+        "**/.mypy_cache": true,
+        "**/.pytest_cache": true,
+        "**/.svn": true,
+        "**/.venv": true,
+        "**/CVS": true,
+        "**/Thumbs.db": true,
+        "**/__pycache__": true
+    },
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
 }

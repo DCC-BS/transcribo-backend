@@ -15,9 +15,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [
-            "src/transcribo_backend"
-            ]
+          paths: ["src/transcribo_backend"]
 theme:
   name: material
   feature:
