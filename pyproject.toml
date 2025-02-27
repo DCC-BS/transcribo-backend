@@ -153,4 +153,3 @@ exclude_also = [
     "@(abc\\. )?abstractmethod",
     "@(abc\\. )?abstractproperty"
 ]
-
