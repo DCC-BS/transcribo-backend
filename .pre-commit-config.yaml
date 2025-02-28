@@ -7,17 +7,21 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: check-json
-        exclude: ^.devcontainer/devcontainer.json
+        exclude: .devcontainer/devcontainer.json|.vscode/.*
       - id: pretty-format-json
-        exclude: ^.devcontainer/devcontainer.json
+        exclude: .devcontainer/devcontainer.json|.vscode/.*
         args: [--autofix]
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: detect-private-key
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.6.3"
+    rev: "v0.9.9"
     hooks:
+      # Run the linter.
       - id: ruff
-        args: [--exit-non-zero-on-fix]
+        types_or: [ python, pyi ]
+        args: [ --fix, --exit-zero ]
+      # Run the formatter.
       - id: ruff-format
+        types_or: [ python, pyi ]

@@ -29,7 +29,7 @@ class Settings:
 
         whisper_api = os.getenv("WHISPER_API")
         if not whisper_api:
-            raise ValueError("WHISPER_API environment variable is required")
+            raise ValueError("WHISPER_API environment variable is required 1")
 
         return cls(whisper_api=whisper_api)
 
