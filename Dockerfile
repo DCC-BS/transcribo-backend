@@ -18,4 +18,9 @@ COPY . /app
 # Sync the project
 RUN uv sync --frozen
 
-CMD [ "uv", "run", "fastapi", "dev", "./src/transcribo_backend/app.py" ]
+ENV ENVIRONMENT=production
+ENV PORT=8000
+
+EXPOSE $PORT
+
+CMD [ "uv", "run", "fastapi", "run", "./src/transcribo_backend/app.py" ]
