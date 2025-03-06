@@ -145,7 +145,7 @@ async def transcribe_submit_task(
     # Handle temperature which could be a single float or a list
     if isinstance(temperature, list):
         for temp in temperature:
-            form_data.add_field("temperature[]", str(temp))
+            form_data.add_field("temperature", str(temp))
     else:
         form_data.add_field("temperature", str(temperature))
 

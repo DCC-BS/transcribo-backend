@@ -18,4 +18,4 @@ COPY . /app
 # Sync the project
 RUN uv sync --frozen
 
-CMD [ "python", "src/transcribo_backend/foo.py" ]
+CMD [ "uv", "run", "fastapi", "dev", "./src/transcribo_backend/app.py" ]
