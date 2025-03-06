@@ -2,6 +2,12 @@
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
+# Install FFmpeg and dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && apt-get clean
+
 # Change the working directory to the `app` directory
 WORKDIR /app
 
