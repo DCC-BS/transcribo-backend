@@ -16,6 +16,7 @@ class TaskStatus(BaseModel):
     status: TaskStatusEnum = Field(default=TaskStatusEnum.IN_PROGRESS)
     created_at: datetime | None = None
     executed_at: datetime | None = None
+    progress: float | None = None
 
     class Config:
         use_enum_values = True
