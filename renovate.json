@@ -75,7 +75,7 @@
             "matchFileNames": [
                 ".devcontainer/devcontainer.json"
             ],
-            "stabilityDays": 7
+            "minimumReleaseAge": "7 days"
         },
         {
             "automerge": true,
@@ -94,8 +94,5 @@
     ],
     "platformAutomerge": true,
     "prCreation": "immediate",
-    "requiredStatusChecks": [
-        "Main"
-    ],
     "timezone": "Europe/Zurich"
 }
