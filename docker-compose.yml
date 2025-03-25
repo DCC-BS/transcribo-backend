@@ -19,6 +19,7 @@ services:
       - MAX_CONCURRENCY
       - MAX_BATCH_SIZE
       - MAX_LATENCY_MS
+      - HF_AUTH_TOKEN=${HF_AUTH_TOKEN}
     volumes:
       - hugging_face_cache:/root/.cache/huggingface
     deploy:
