@@ -167,12 +167,8 @@ async def transcribe_submit_task(
     form_data.add_field("response_format", response_format.value)  # Use the enum value
     form_data.add_field("timestamp_granularities[]", timestamp_granularities)
 
-    # Handle temperature which could be a single float or a list
-    if isinstance(temperature, list):
-        for temp in temperature:
-            form_data.add_field("temperature", str(temp))
-    else:
-        form_data.add_field("temperature", str(temperature))
+
+    form_data.add_field("temperature", str(temperature))
 
     if diarization_speaker_count:
         form_data.add_field("diarization_speaker_count", str(diarization_speaker_count))
