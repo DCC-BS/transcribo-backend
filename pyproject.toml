@@ -24,6 +24,7 @@ dependencies = [
     "pydub>=0.25.1",
     "structlog>=25.1.0",
     "version-pioneer>=0.0.13",
+    "audioop-lts; python_version >= '3.13'"
 ]
 
 [project.urls]
