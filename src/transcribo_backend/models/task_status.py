@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 
 class TaskStatusEnum(str, Enum):
     IN_PROGRESS = "in_progress"
-    SUCCESS = "success"
-    FAILURE = "failure"
+    COMPLETED = "completed"
+    FAILED = "failed"
     CANCELLED = "cancelled"
 
 
