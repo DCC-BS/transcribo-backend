@@ -38,7 +38,7 @@ async def get_task_result(task_id: str) -> TranscriptionResponse:
 
 
 @app.post("/transcribe")
-async def submit_transcribe(audio_file: UploadFile) -> TaskStatus:
+async def submit_transcribe(audio_file: UploadFile, num_speakers: int | None = None) -> TaskStatus:
     """
     Endpoint to submit a transcription task.
     """
@@ -57,7 +57,7 @@ async def submit_transcribe(audio_file: UploadFile) -> TaskStatus:
 
     # Submit the transcription task
     extension = Path(audio_file.filename).suffix.lower().strip(".")
-    status = await transcribe_submit_task(audio_data, extension)
+    status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
     return status
 
 
