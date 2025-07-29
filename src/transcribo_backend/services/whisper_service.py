@@ -3,21 +3,13 @@ import uuid
 from typing import Any
 
 import aiohttp
-from fastapi import APIRouter
 
+from transcribo_backend.config import settings
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
 from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
 from transcribo_backend.services.audio_converter import convert_to_wav, is_wav_format
-
-from ..config import settings
-
-router = APIRouter()
-
-# BentoML API endpoint
-BENTOML_API_URL = f"{settings.whisper_api}/audio/transcriptions"
-
 
 taskId_to_progressId: dict[str, str] = {}
 
@@ -61,7 +53,10 @@ async def transcribe_get_task_result(task_id: str) -> TranscriptionResponse:
     url = f"{settings.whisper_api}/audio/transcriptions/task/get?task_id={task_id}"
 
     # Get the transcription result
-    async with aiohttp.ClientSession() as session, session.get(url) as response:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(url, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+    ):
         response.raise_for_status()
         result_data = await response.json()
 
@@ -88,7 +83,10 @@ async def transcribe_retry_task(task_id: str) -> TaskStatus:
     """
     url = f"{settings.whisper_api}/audio/transcriptions/task/retry?task_id={task_id}"
 
-    async with aiohttp.ClientSession() as session, session.post(url) as response:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(url, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+    ):
         response.raise_for_status()
         return TaskStatus(**await response.json())
 
@@ -105,7 +103,10 @@ async def transcribe_cancel_task(task_id: str) -> TaskStatus:
     """
     url = f"{settings.whisper_api}/audio/transcriptions/task/cancel?task_id={task_id}"
 
-    async with aiohttp.ClientSession() as session, session.put(url) as response:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.put(url, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+    ):
         response.raise_for_status()
         return TaskStatus(**await response.json())
 
@@ -167,7 +168,6 @@ async def transcribe_submit_task(
     form_data.add_field("response_format", response_format.value)  # Use the enum value
     form_data.add_field("timestamp_granularities[]", timestamp_granularities)
 
-
     form_data.add_field("temperature", str(temperature))
 
     if diarization_speaker_count:
@@ -185,7 +185,10 @@ async def transcribe_submit_task(
             form_data.add_field(key, str(value))
 
     # Send the request
-    async with aiohttp.ClientSession() as session, session.post(url, data=form_data) as response:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(url, data=form_data, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+    ):
         response.raise_for_status()
         status = TaskStatus(**await response.json())
         taskId_to_progressId[status.task_id] = progress_id

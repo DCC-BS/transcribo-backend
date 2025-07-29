@@ -5,8 +5,10 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile
 
 from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
+from transcribo_backend.models.summary import Summary, SummaryRequest
 from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
+from transcribo_backend.services import summary_service
 from transcribo_backend.services.whisper_service import (
     transcribe_get_task_result,
     transcribe_get_task_status,
@@ -59,6 +61,15 @@ async def submit_transcribe(audio_file: UploadFile, num_speakers: int | None = N
     extension = Path(audio_file.filename).suffix.lower().strip(".")
     status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
     return status
+
+
+@app.post("/summarize")
+async def summarize(request: SummaryRequest) -> Summary:
+    """
+    Endpoint to summarize a text.
+    """
+    summary = await summary_service.summarize(request.transcript)
+    return summary
 
 
 if __name__ == "__main__":  # pragma: no cover

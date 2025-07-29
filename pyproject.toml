@@ -24,7 +24,8 @@ dependencies = [
     "pydub>=0.25.1",
     "structlog>=25.1.0",
     "version-pioneer>=0.0.13",
-    "audioop-lts; python_version >= '3.13'"
+    "audioop-lts; python_version >= '3.13'",
+    "openai>=1.97.1",
 ]
 
 [project.urls]
