@@ -21,12 +21,11 @@ RUN uv sync --frozen --no-install-project
 # Copy the project into the image
 COPY . /app
 
+RUN chmod +x /app/run.sh
+
 # Sync the project
 RUN uv sync --frozen
 
 ENV ENVIRONMENT=production
-ENV PORT=8000
 
-EXPOSE $PORT
-
-CMD [ "uv", "run", "fastapi", "run", "./src/transcribo_backend/app.py" ]
+ENTRYPOINT /app/run.sh --port ${PORT}
