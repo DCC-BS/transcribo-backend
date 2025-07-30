@@ -19,12 +19,32 @@ async def summarize(transcript: str) -> Summary:
     """
     Summarize a transcript of a meeting.
     """
-    client = AsyncOpenAI(api_key=settings.api_key, base_url=settings.llm_api)
-    models = await client.models.list()
-    model = models.data[0].id
+
+
+async def summarize(transcript: str) -> Summary:
+    """
+    Summarize a transcript of a meeting.
+    """
+    try:
+        client = AsyncOpenAI(api_key=settings.api_key, base_url=settings.llm_api)
+        models = await client.models.list()
+
+        if not models.data:
+            raise ValueError("Could not find any models available from the API")
+
+        model = models.data[0].id
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize OpenAI client or fetch models.") from e
+
+    # Disable Qwen3 thinking mode for faster response
     transcript = transcript + "\nothink"
-    response = await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": transcript}],
-    )
-    return Summary(summary=response.choices[0].message.content)
+
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": transcript}],
+            thinking=False,
+        )
+        return Summary(summary=response.choices[0].message.content)
+    except Exception as e:
+        raise RuntimeError(f"Failed to generate summary.") from e

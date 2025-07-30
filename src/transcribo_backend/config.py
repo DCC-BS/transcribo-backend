@@ -17,6 +17,10 @@ class Settings:
     llm_api: str
     api_key: str
 
+    def __repr__(self) -> str:
+        """Custom repr that masks sensitive data."""
+        return f"Settings(whisper_api={self.whisper_api}, llm_api={self.llm_api}, api_key=********)"
+
     @classmethod
     def from_env(cls) -> "Settings":
         """Create settings from environment variables.

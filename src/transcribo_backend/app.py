@@ -68,8 +68,21 @@ async def summarize(request: SummaryRequest) -> Summary:
     """
     Endpoint to summarize a text.
     """
-    summary = await summary_service.summarize(request.transcript)
-    return summary
+    model_context_length = 32_000
+    if not request.transcript or not request.transcript.strip():
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Transcript is empty")
+    if len(request.transcript) > model_context_length * 4:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
+        )
+    try:
+        summary = await summary_service.summarize(request.transcript)
+    except Exception as e:
+        logger.exception("Failed to summarize transcript", exc_info=e)
+        raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to generate summary") from None
+    else:
+        return summary
 
 
 if __name__ == "__main__":  # pragma: no cover
