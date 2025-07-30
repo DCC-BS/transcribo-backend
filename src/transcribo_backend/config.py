@@ -31,7 +31,8 @@ class Settings:
         Raises:
             ValueError: If a required environment variable is missing
         """
-        load_dotenv()  # Load .env file if present
+        if os.path.exists(".env"):
+            load_dotenv()  # Load .env file if present
 
         whisper_api = os.getenv("WHISPER_API")
         llm_api = os.getenv("LLM_API")
