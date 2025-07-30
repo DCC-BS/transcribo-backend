@@ -55,7 +55,7 @@ async def transcribe_get_task_result(task_id: str) -> TranscriptionResponse:
     # Get the transcription result
     async with (
         aiohttp.ClientSession() as session,
-        session.get(url, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+        session.get(url) as response,
     ):
         response.raise_for_status()
         result_data = await response.json()
@@ -85,7 +85,7 @@ async def transcribe_retry_task(task_id: str) -> TaskStatus:
 
     async with (
         aiohttp.ClientSession() as session,
-        session.post(url, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+        session.post(url) as response,
     ):
         response.raise_for_status()
         return TaskStatus(**await response.json())
@@ -105,7 +105,7 @@ async def transcribe_cancel_task(task_id: str) -> TaskStatus:
 
     async with (
         aiohttp.ClientSession() as session,
-        session.put(url, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+        session.put(url) as response,
     ):
         response.raise_for_status()
         return TaskStatus(**await response.json())
@@ -187,7 +187,7 @@ async def transcribe_submit_task(
     # Send the request
     async with (
         aiohttp.ClientSession() as session,
-        session.post(url, data=form_data, headers={"Authorization": f"Bearer {settings.api_key}"}) as response,
+        session.post(url, data=form_data) as response,
     ):
         response.raise_for_status()
         status = TaskStatus(**await response.json())
