@@ -43,7 +43,6 @@ async def summarize(transcript: str) -> Summary:
         response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": transcript}],
-            thinking=False,
         )
         return Summary(summary=response.choices[0].message.content)
     except Exception as e:
