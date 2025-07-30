@@ -145,6 +145,7 @@ async def transcribe_submit_task(
         TaskStatus: The status of the created task
     """
     url = f"{settings.whisper_api}/audio/transcriptions/task/submit"
+    print(url)
 
     if temperature is None:
         temperature = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
