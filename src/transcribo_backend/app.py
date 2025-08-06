@@ -1,8 +1,9 @@
 import logging
 from http import HTTPStatus
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, Header, HTTPException, UploadFile
 
 from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
 from transcribo_backend.models.summary import Summary, SummaryRequest
@@ -14,6 +15,7 @@ from transcribo_backend.services.whisper_service import (
     transcribe_get_task_status,
     transcribe_submit_task,
 )
+from transcribo_backend.utils.usage_tracking import get_pseudonymized_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,9 @@ async def get_task_result(task_id: str) -> TranscriptionResponse:
 
 
 @app.post("/transcribe")
-async def submit_transcribe(audio_file: UploadFile, num_speakers: int | None = None) -> TaskStatus:
+async def submit_transcribe(
+    audio_file: UploadFile, num_speakers: int | None = None, x_client_id: Annotated[str | None, Header()] = None
+) -> TaskStatus:
     """
     Endpoint to submit a transcription task.
     """
@@ -57,6 +61,18 @@ async def submit_transcribe(audio_file: UploadFile, num_speakers: int | None = N
     # Read the uploaded file content
     audio_data = await audio_file.read()
 
+    # Extract X-Client-Id from the request headers
+    pseudonym_id = get_pseudonymized_user_id(x_client_id)
+    logger.info(
+        "app_event",
+        extra={
+            "pseudonym_id": pseudonym_id,
+            "event": "transcribe",
+            "num_speakers": num_speakers,
+            "file_size": len(audio_data),
+        },
+    )
+
     # Submit the transcription task
     extension = Path(audio_file.filename).suffix.lower().strip(".")
     status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
@@ -69,6 +85,7 @@ async def summarize(request: SummaryRequest) -> Summary:
     Endpoint to summarize a text.
     """
     model_context_length = 32_000
+
     if not request.transcript or not request.transcript.strip():
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Transcript is empty")
     if len(request.transcript) > model_context_length * 4:
@@ -76,6 +93,13 @@ async def summarize(request: SummaryRequest) -> Summary:
             status_code=HTTPStatus.BAD_REQUEST,
             detail=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
         )
+    # Extract X-Client-Id from the request headers
+    pseudonym_id = get_pseudonymized_user_id(request.headers.get("X-Client-Id"))
+    logger.info(
+        "app_event",
+        extra={"pseudonym_id": pseudonym_id, "event": "summarize", "transcript_length": len(request.transcript)},
+    )
+
     try:
         summary = await summary_service.summarize(request.transcript)
     except Exception as e:

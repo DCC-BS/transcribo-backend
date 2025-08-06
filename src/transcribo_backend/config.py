@@ -19,7 +19,9 @@ class Settings:
 
     def __repr__(self) -> str:
         """Custom repr that masks sensitive data."""
-        return f"Settings(whisper_api={self.whisper_api}, llm_api={self.llm_api}, api_key=********)"
+        return (
+            f"Settings(whisper_api={self.whisper_api}, llm_api={self.llm_api}, api_key=********, hmac_secret=********)"
+        )
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -37,6 +39,7 @@ class Settings:
         whisper_api = os.getenv("WHISPER_API")
         llm_api = os.getenv("LLM_API")
         api_key = os.getenv("API_KEY")
+        hmac_secret = os.getenv("HMAC_SECRET")
 
         if not whisper_api:
             raise ValueError("WHISPER_API environment variable is required")
@@ -47,7 +50,10 @@ class Settings:
         if not api_key:
             raise ValueError("API_KEY environment variable is required")
 
-        return cls(whisper_api=whisper_api, llm_api=llm_api, api_key=api_key)
+        if not hmac_secret:
+            raise ValueError("HMAC_SECRET environment variable is required")
+
+        return cls(whisper_api=whisper_api, llm_api=llm_api, api_key=api_key, hmac_secret=hmac_secret)
 
 
 # Create a global settings instance for easy import
