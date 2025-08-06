@@ -16,6 +16,7 @@ class Settings:
     whisper_api: str
     llm_api: str
     api_key: str
+    hmac_secret: str
 
     def __repr__(self) -> str:
         """Custom repr that masks sensitive data."""

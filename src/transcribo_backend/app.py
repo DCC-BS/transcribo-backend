@@ -1,4 +1,3 @@
-import logging
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated
@@ -15,9 +14,11 @@ from transcribo_backend.services.whisper_service import (
     transcribe_get_task_status,
     transcribe_submit_task,
 )
+from transcribo_backend.utils.logger import get_logger, init_logger
 from transcribo_backend.utils.usage_tracking import get_pseudonymized_user_id
 
-logger = logging.getLogger(__name__)
+init_logger()
+logger = get_logger("app")
 
 # Initialize FastAPI app
 app = FastAPI()
