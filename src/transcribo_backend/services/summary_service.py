@@ -34,7 +34,7 @@ async def summarize(transcript: str) -> Summary:
 
         model = models.data[0].id
     except Exception as e:
-        raise RuntimeError(f"Failed to initialize OpenAI client or fetch models.") from e
+        raise RuntimeError("Failed to initialize OpenAI client or fetch models.") from e
 
     # Disable Qwen3 thinking mode for faster response
     transcript = transcript + "\nothink"
@@ -46,4 +46,4 @@ async def summarize(transcript: str) -> Summary:
         )
         return Summary(summary=response.choices[0].message.content)
     except Exception as e:
-        raise RuntimeError(f"Failed to generate summary.") from e
+        raise RuntimeError("Failed to generate summary.") from e
