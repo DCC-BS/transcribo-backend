@@ -81,7 +81,7 @@ async def submit_transcribe(
 
 
 @app.post("/summarize")
-async def summarize(request: SummaryRequest) -> Summary:
+async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, Header()] = None) -> Summary:
     """
     Endpoint to summarize a text.
     """
@@ -95,7 +95,7 @@ async def summarize(request: SummaryRequest) -> Summary:
             detail=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
         )
     # Extract X-Client-Id from the request headers
-    pseudonym_id = get_pseudonymized_user_id(request.headers.get("X-Client-Id"))
+    pseudonym_id = get_pseudonymized_user_id(x_client_id)
     logger.info(
         "app_event",
         extra={"pseudonym_id": pseudonym_id, "event": "summarize", "transcript_length": len(request.transcript)},
