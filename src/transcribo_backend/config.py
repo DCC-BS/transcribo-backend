@@ -59,3 +59,4 @@ class Settings:
 
 # Create a global settings instance for easy import
 settings = Settings.from_env()
+print(f"Settings loaded: {settings}")

@@ -40,5 +40,6 @@ services:
       - "8000:8000"
     environment:
       - WHISPER_API=http://faster_whisper:50001/v1
+      - PORT=${PORT}
 volumes:
   hugging_face_cache:
