@@ -31,39 +31,6 @@ def setup_stdlib_logging() -> None:
         lib_logger.propagate = False
 
 
-def add_request_id(logger: BoundLogger, method_name: str, event_dict: EventDict) -> Mapping[str, Any]:
-    """
-    Add a request ID to the log context if it doesn't exist.
-
-    Args:
-        logger: The logger instance
-        method_name: The name of the logging method
-        event_dict: The event dictionary
-
-    Returns:
-        The updated event dictionary
-    """
-    if "request_id" not in event_dict:
-        event_dict["request_id"] = str(uuid.uuid4())
-    return event_dict
-
-
-def add_timestamp(logger: BoundLogger, method_name: str, event_dict: EventDict) -> Mapping[str, Any]:
-    """
-    Add an ISO-8601 timestamp to the log entry.
-
-    Args:
-        logger: The logger instance
-        method_name: The name of the logging method
-        event_dict: The event dictionary
-
-    Returns:
-        The updated event dictionary
-    """
-    event_dict["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    return event_dict
-
-
 def init_logger() -> None:
     """
     Initialize the logger configuration based on environment.
@@ -78,17 +45,14 @@ def init_logger() -> None:
         structlog.stdlib.filter_by_level,  # Filter logs by configured level
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
-        add_timestamp,
-        add_request_id,
         structlog.processors.CallsiteParameterAdder(
             parameters=[
                 CallsiteParameter.MODULE,
                 CallsiteParameter.FUNC_NAME,
                 CallsiteParameter.LINENO,
-            ]  # Using enum values for structlog 25.2.0
+            ]
         ),
-        # structlog.processors.format_exc_info,  # Format exception info if present
-        structlog.processors.UnicodeDecoder(),  # Handle non-unicode characters
+        structlog.processors.UnicodeDecoder(),
     ]
 
     # Use different renderers for development vs production
