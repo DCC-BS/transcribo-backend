@@ -30,16 +30,16 @@ services:
             - driver: nvidia
               device_ids: [ '1' ]
               capabilities: [ gpu ]
-  transcribo-backend:
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    depends_on:
-      - faster_whisper
-    ports:
-      - "8000:8000"
-    environment:
-      - WHISPER_API=http://faster_whisper:50001/v1
-      - PORT=${PORT}
+  # transcribo-backend:
+  #   build:
+  #     context: .
+  #     dockerfile: ./Dockerfile
+  #   depends_on:
+  #     - faster_whisper
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - WHISPER_API=http://localhost:50001/v1
+  #     - PORT=${PORT}
 volumes:
   hugging_face_cache:

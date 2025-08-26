@@ -9,7 +9,7 @@ from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
 from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
-from transcribo_backend.services.audio_converter import convert_to_wav, is_wav_format
+from transcribo_backend.services.audio_converter import convert_to_mp3, is_mp3_format
 
 taskId_to_progressId: dict[str, str] = {}
 
@@ -150,12 +150,12 @@ async def transcribe_submit_task(
         temperature = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
     # Convert to WAV if not already in WAV format
-    if not is_wav_format(audio_data):
-        audio_data = convert_to_wav(audio_data, file_format)
+    if not is_mp3_format(audio_data):
+        audio_data = convert_to_mp3(audio_data, file_format)
 
     # Prepare form data
     form_data = aiohttp.FormData()
-    form_data.add_field("file", audio_data, filename="audio.wav")
+    form_data.add_field("file", audio_data, filename="audio.mp3")
     form_data.add_field("model", model)
 
     progress_id = uuid.uuid4().hex

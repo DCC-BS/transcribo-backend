@@ -4,17 +4,19 @@ from fastapi import HTTPException
 from pydub import AudioSegment
 
 
-def is_wav_format(audio_data: bytes) -> bool:
+def is_mp3_format(audio_data: bytes) -> bool:
     """
-    Check if the audio data is already in WAV format.
+    Check if the audio data is already in MP3 format.
     """
-    # WAV files start with the RIFF header
-    return audio_data.startswith(b"RIFF") and b"WAVE" in audio_data[:12]
+    # MP3 files typically start with ID3 tag or 0xFFFB/0xFFF3/0xFFF2 frame sync
+    return audio_data.startswith(b"ID3") or (
+        len(audio_data) > 2 and audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0
+    )
 
 
-def convert_to_wav(file_data: bytes, original_format: str) -> bytes:
+def convert_to_mp3(file_data: bytes, original_format: str | None) -> bytes:
     """
-    Convert audio or video data to WAV format using pydub.
+    Convert audio or video data to MP3 format using pydub.
 
     Args:
         file_data: The audio/video bytes
@@ -22,7 +24,7 @@ def convert_to_wav(file_data: bytes, original_format: str) -> bytes:
                         If None, will try to determine the format
 
     Returns:
-        Bytes of the audio in WAV format
+        Bytes of the audio in MP3 format
     """
     try:
         # Create a BytesIO object for input
@@ -31,7 +33,7 @@ def convert_to_wav(file_data: bytes, original_format: str) -> bytes:
         # If format is not provided, try with common formats
         if original_format is None:
             # Include both audio and video formats
-            formats_to_try = ["mp3", "m4a", "ogg", "flac", "mp4", "avi", "mkv", "mov", "webm"]
+            formats_to_try = ["wav", "m4a", "ogg", "flac", "mp4", "avi", "mkv", "mov", "webm"]
             for fmt in formats_to_try:
                 try:
                     file_io.seek(0)
@@ -44,10 +46,10 @@ def convert_to_wav(file_data: bytes, original_format: str) -> bytes:
         else:
             audio = AudioSegment.from_file(file_io, format=original_format)
 
-        # Export to WAV
-        wav_io = io.BytesIO()
-        audio.export(wav_io, format="wav")
-        return wav_io.getvalue()
+        # Export to MP3
+        mp3_io = io.BytesIO()
+        audio.export(mp3_io, format="mp3")
+        return mp3_io.getvalue()
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error converting to WAV: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error converting to MP3: {e!s}")
