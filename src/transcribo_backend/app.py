@@ -76,7 +76,22 @@ async def submit_transcribe(
 
     # Submit the transcription task
     extension = Path(audio_file.filename).suffix.lower().strip(".")
-    status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
+    try:
+        status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
+    except HTTPException as e:
+        logger.exception("Failed to submit transcription task", exc_info=e)
+        if e.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+            raise HTTPException(status_code=HTTPStatus.TOO_MANY_REQUESTS, detail="Too many requests") from None
+        if e.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
+            raise HTTPException(status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE, detail="File is too large") from None
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to submit transcription task"
+        ) from None
+    except Exception as e:
+        logger.exception("Failed to submit transcription task", exc_info=e)
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to submit transcription task"
+        ) from None
     return status
 
 

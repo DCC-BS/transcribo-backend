@@ -3,13 +3,18 @@ import uuid
 from typing import Any
 
 import aiohttp
+from fastapi import HTTPException
 
 from transcribo_backend.config import settings
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
 from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
-from transcribo_backend.services.audio_converter import convert_to_mp3, is_mp3_format
+from transcribo_backend.services.audio_converter import (
+    AudioConversionError,
+    convert_to_mp3,
+    is_mp3_format,
+)
 
 taskId_to_progressId: dict[str, str] = {}
 
@@ -65,6 +70,7 @@ async def transcribe_get_task_result(task_id: str) -> TranscriptionResponse:
         transcription = TranscriptionResponse(**result_data)
         for segment in transcription.segments:
             segment.text = segment.text.strip()
+            segment.text = segment.text.replace("ß", "ss")
             segment.speaker = segment.speaker or "Unknown"
             segment.speaker = segment.speaker.strip().capitalize()
 
@@ -149,9 +155,13 @@ async def transcribe_submit_task(
     if temperature is None:
         temperature = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
-    # Convert to WAV if not already in WAV format
+    # Convert to MP3 if not already in MP3 format
     if not is_mp3_format(audio_data):
-        audio_data = convert_to_mp3(audio_data, file_format)
+        try:
+            # Convert with balanced quality settings
+            audio_data = convert_to_mp3(audio_data)
+        except AudioConversionError as e:
+            raise HTTPException(status_code=400, detail=f"Audio conversion failed: {e}") from e
 
     # Prepare form data
     form_data = aiohttp.FormData()
