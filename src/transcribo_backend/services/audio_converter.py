@@ -76,10 +76,24 @@ def convert_to_mp3(file_data: bytes) -> bytes:
                 input_temp.write(file_data)
                 input_temp.flush()
 
-                # Build FFmpeg command with balanced quality settings
-                cmd = ["ffmpeg", "-y", "-i", input_path, "-codec:a", "libmp3lame", "-b:a", "128k", output_path]
+                # Build FFmpeg command with balanced quality settings and resample to 16kHz
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    input_path,
+                    "-ac",
+                    "1",
+                    "-acodec",
+                    "libmp3lame",
+                    "-b:a",
+                    "64k",
+                    "-ar",
+                    "16000",
+                    output_path,
+                ]
 
-                logger.info("Running FFmpeg conversion with balanced quality (128k bitrate)")
+                logger.info("Running FFmpeg conversion with balanced quality (64k bitrate)")
 
                 # Run FFmpeg
                 result = subprocess.run(
