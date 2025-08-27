@@ -29,6 +29,9 @@ async def transcribe_get_task_status(task_id: str) -> TaskStatus:
     Returns:
         TaskStatus: The current status of the task
     """
+    if task_id not in taskId_to_progressId:
+        raise HTTPException(status_code=404, detail="Task not found")
+
     url = f"{settings.whisper_api}/audio/transcriptions/task/status?task_id={task_id}"
     progress_url = f"{settings.whisper_api}/progress/{taskId_to_progressId[task_id]}"
 
