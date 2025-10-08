@@ -9,7 +9,6 @@
 The backend of the transcribo app
 
 - **Github repository**: <https://github.com/DCC-BS/transcribo-backend/>
-- **Documentation** <https://DCC-BS.github.io/transcribo-backend/>
 
 ## Getting started with your project
 
