@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from transcribo_backend.config import settings
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
-from transcribo_backend.models.task_status import TaskStatus
+from transcribo_backend.models.task_status import TaskStatus, TaskStatusEnum
 from transcribo_backend.models.transcription_response import TranscriptionResponse
 from transcribo_backend.services.audio_converter import (
     AudioConversionError,
@@ -41,7 +41,11 @@ async def transcribe_get_task_status(task_id: str) -> TaskStatus:
         session.get(url) as response,
         session.get(progress_url) as progress_response,
     ):
+        if response.status == 404:
+            return TaskStatus(task_id=task_id, status=TaskStatusEnum.FAILED)
         response.raise_for_status()
+        if progress_response.status == 404:
+            raise HTTPException(status_code=404, detail="Progress not found")
         progress_response.raise_for_status()
 
         progress = ProgressResponse(**await progress_response.json())
