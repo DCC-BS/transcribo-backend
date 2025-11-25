@@ -1,14 +1,11 @@
 import logging
 import os
-import time
-import uuid
-from typing import Any, Mapping, Optional
 
 import structlog
 import structlog.processors
 from structlog.processors import CallsiteParameter
 from structlog.stdlib import BoundLogger
-from structlog.types import EventDict, Processor
+from structlog.types import Processor
 
 
 # Standard library logging setup
@@ -73,7 +70,7 @@ def init_logger() -> None:
     )
 
 
-def get_logger(name: Optional[str] = None) -> BoundLogger:
+def get_logger(name: str | None = None) -> BoundLogger:
     """
     Get a structured logger instance.
 
