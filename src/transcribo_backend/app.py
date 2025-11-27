@@ -44,7 +44,10 @@ async def get_task_result(task_id: str) -> TranscriptionResponse:
 
 @app.post("/transcribe")
 async def submit_transcribe(
-    audio_file: UploadFile, num_speakers: int | None = None, x_client_id: Annotated[str | None, Header()] = None
+    audio_file: UploadFile,
+    num_speakers: int | None = None,
+    language: str | None = None,
+    x_client_id: Annotated[str | None, Header()] = None,
 ) -> TaskStatus:
     """
     Endpoint to submit a transcription task.
@@ -77,7 +80,9 @@ async def submit_transcribe(
     # Submit the transcription task
     extension = Path(audio_file.filename).suffix.lower().strip(".")
     try:
-        status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
+        status = await transcribe_submit_task(
+            audio_data, extension, diarization_speaker_count=num_speakers, language=language
+        )
     except HTTPException as e:
         logger.exception("Failed to submit transcription task", exc_info=e)
         if e.status_code == HTTPStatus.TOO_MANY_REQUESTS:

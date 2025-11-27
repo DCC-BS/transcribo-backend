@@ -177,7 +177,7 @@ async def transcribe_submit_task(
 
     progress_id = uuid.uuid4().hex
     form_data.add_field("progress_id", progress_id)
-
+    print(f"language: {language}")
     if language:
         form_data.add_field("language", language)
     if prompt:
@@ -193,6 +193,8 @@ async def transcribe_submit_task(
     # Add boolean parameters
     form_data.add_field("vad_filter", str(vad_filter))
     form_data.add_field("diarization", str(diarization))
+
+    print(f"form_data: {form_data}")
 
     # Add any additional parameters
     for key, value in kwargs.items():
