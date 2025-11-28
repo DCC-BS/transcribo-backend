@@ -44,7 +44,10 @@ async def get_task_result(task_id: str) -> TranscriptionResponse:
 
 @app.post("/transcribe")
 async def submit_transcribe(
-    audio_file: UploadFile, num_speakers: int | None = None, x_client_id: Annotated[str | None, Header()] = None
+    audio_file: UploadFile,
+    num_speakers: int | None = None,
+    language: str | None = None,
+    x_client_id: Annotated[str | None, Header()] = None,
 ) -> TaskStatus:
     """
     Endpoint to submit a transcription task.
@@ -63,7 +66,7 @@ async def submit_transcribe(
     audio_data = await audio_file.read()
 
     # Extract X-Client-Id from the request headers
-    pseudonym_id = get_pseudonymized_user_id(x_client_id)
+    pseudonym_id = get_pseudonymized_user_id(x_client_id or "unknown")
     logger.info(
         "app_event",
         extra={
@@ -77,7 +80,9 @@ async def submit_transcribe(
     # Submit the transcription task
     extension = Path(audio_file.filename).suffix.lower().strip(".")
     try:
-        status = await transcribe_submit_task(audio_data, extension, diarization_speaker_count=num_speakers)
+        status = await transcribe_submit_task(
+            audio_data, extension, diarization_speaker_count=num_speakers, language=language
+        )
     except HTTPException as e:
         logger.exception("Failed to submit transcription task", exc_info=e)
         if e.status_code == HTTPStatus.TOO_MANY_REQUESTS:
@@ -110,7 +115,7 @@ async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, 
             detail=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
         )
     # Extract X-Client-Id from the request headers
-    pseudonym_id = get_pseudonymized_user_id(x_client_id)
+    pseudonym_id = get_pseudonymized_user_id(x_client_id or "unknown")
     logger.info(
         "app_event",
         extra={"pseudonym_id": pseudonym_id, "event": "summarize", "transcript_length": len(request.transcript)},

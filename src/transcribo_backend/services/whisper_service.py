@@ -177,7 +177,6 @@ async def transcribe_submit_task(
 
     progress_id = uuid.uuid4().hex
     form_data.add_field("progress_id", progress_id)
-
     if language:
         form_data.add_field("language", language)
     if prompt:

@@ -46,6 +46,7 @@ dev = [
     "mkdocs-material>=8.5.10",
     "mkdocstrings[python]>=0.26.1",
     "mypy>=1.15.0",
+    "pyrefly>=0.43.1",
 ]
 
 [build-system]
