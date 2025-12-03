@@ -1,17 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "lockFileMaintenance": {
-    "enabled": true
-  },
   "dependencyDashboard": true,
   "extends": [
     "config:recommended"
   ],
   "forkProcessing": "enabled",
+  "internalChecksFilter": "strict",
   "labels": [
     "renovate"
   ],
-  "internalChecksFilter": "strict",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "minimumReleaseAge": "14 days",
   "packageRules": [
     {
@@ -79,7 +79,7 @@
       ],
       "matchFileNames": [
         ".devcontainer/devcontainer.json"
-      ],
+      ]
     },
     {
       "automerge": true,

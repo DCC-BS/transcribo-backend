@@ -1,5 +1,10 @@
 ignore-missing-imports = [
-    "version_pioneer.*",
     "pydub",
 ]
 untyped-def-behavior = "skip-and-infer-return-any"
+
+project-includes = [
+    "./src",
+]
+
+python-interpreter-path = ".venv/bin/python3"

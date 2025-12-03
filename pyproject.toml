@@ -1,6 +1,6 @@
 [project]
 name = "transcribo-backend"
-dynamic = ["version"]
+version = "0.0.2"
 description = "The backend of the transcribo app"
 authors = [{name = "Data Competence Center Basel-Stadt", email = "dcc@bs.ch" },{ name = "Tobias Bollinger", email = "tobias.bollinger@gmail.com" }]
 readme = "README.md"
@@ -20,9 +20,8 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.11.13",
-    "fastapi[standard]>=0.115.8",
+    "fastapi[standard]>=0.123.5",
     "structlog>=25.1.0",
-    "version-pioneer>=0.0.13",
     "audioop-lts; python_version >= '3.13'",
     "openai>=1.97.1",
 ]
@@ -50,31 +49,8 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling","version-pioneer>=0.0.13"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.version]
-source = "version-pioneer"
-
-[tool.version-pioneer]
-versionscript = "src/transcribo_backend/_version.py"  # Where to "read" the Version-Pioneer script (to execute `get_version_dict()`).
-versionfile-sdist = "src/transcribo_backend/_version.py"  # Where to "write" the version dict for sdist.
-versionfile-wheel = "src/transcribo_backend/_version.py"  # Where to "write" the version dict for wheel.
-
-[tool.basedpyright]
-include = [
-    "src"
-]
-exclude = [
-    "**/__pycache__",
-    "**/.venv",
-    "**/.*"
-]
-defineConstant = { DEBUG = true }
-pythonVersion = "3.12"
-stubPath = "src/transcribo_backend/stubs"
-reportExplicitAny = false
-
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -122,6 +98,11 @@ ignore = [
     "E501",
     # DoNotAssignLambda
     "E731",
+]
+
+[tool.pyrefly]
+project-includes = [
+    "src/**.py*",
 ]
 
 [tool.ruff.lint.per-file-ignores]

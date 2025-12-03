@@ -1,3 +1,4 @@
+import time
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated
@@ -16,6 +17,8 @@ from transcribo_backend.services.whisper_service import (
 )
 from transcribo_backend.utils.logger import get_logger, init_logger
 from transcribo_backend.utils.usage_tracking import get_pseudonymized_user_id
+
+START_TIME = time.time()
 
 init_logger()
 logger = get_logger("app")
@@ -128,6 +131,17 @@ async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, 
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to generate summary") from None
     else:
         return summary
+
+
+@app.get("/health/liveness")
+async def liveness_probe():
+    """
+    Liveness Probe
+    * Purpose: Checks if the application process is running and not deadlocked.
+    * K8s Action: If this fails, the container is KILLED and RESTARTED.
+    * Rule: Keep it simple. Do NOT check databases here.
+    """
+    return {"status": "up", "uptime_seconds": time.time() - START_TIME}
 
 
 if __name__ == "__main__":  # pragma: no cover
