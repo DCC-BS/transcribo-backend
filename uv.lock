@@ -1989,7 +1989,7 @@ wheels = [
 
 [[package]]
 name = "transcribo-backend"
-version = "0.0.2"
+version = "0.4.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

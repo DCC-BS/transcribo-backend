@@ -214,5 +214,5 @@ This application is based on [Transcribo](https://github.com/machinelearningZH/a
 
 <a href="https://www.bs.ch/schwerpunkte/daten/databs/schwerpunkte/datenwissenschaften-und-ki"><img src="https://github.com/DCC-BS/.github/blob/main/_imgs/databs_log.png?raw=true" alt="DCC Logo" width="200" /></a>
 
-**Datenwissenschaften und KI**  
+**Datenwissenschaften und KI**
 Developed with ❤️ by DCC - Data Competence Center
