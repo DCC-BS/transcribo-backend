@@ -64,7 +64,14 @@ class Settings:
         if not whisper_health_check:
             raise ValueError("WHISPER_HEALTH_CHECK environment variable is required")
 
-        return cls(whisper_api=whisper_api, llm_api=llm_api, api_key=api_key, hmac_secret=hmac_secret, llm_health_check=llm_health_check, whisper_health_check=whisper_health_check)
+        return cls(
+            whisper_api=whisper_api,
+            llm_api=llm_api,
+            api_key=api_key,
+            hmac_secret=hmac_secret,
+            llm_health_check=llm_health_check,
+            whisper_health_check=whisper_health_check,
+        )
 
 
 # Create a global settings instance for easy import

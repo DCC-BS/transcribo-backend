@@ -161,13 +161,7 @@ async def readiness_probe(response: Response):
     * K8s Action: If this fails, traffic stops sending to this pod.
     * Rule: Check critical dependencies here.
     """
-    health_check = {
-        "status": "ready",
-        "checks": {
-            "llm_api": "unknown",
-            "whisper_api": "unknown"
-        }
-    }
+    health_check = {"status": "ready", "checks": {"llm_api": "unknown", "whisper_api": "unknown"}}
 
     try:
         timeout = aiohttp.ClientTimeout(total=5.0)
@@ -199,13 +193,10 @@ async def readiness_probe(response: Response):
         # If a critical dependency fails, we must return a 503.
         # This tells K8s to stop sending traffic to this specific pod.
         response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
-        return {
-            "status": "unhealthy",
-            "checks": health_check["checks"],
-            "error": str(e)
-        }
+        return {"status": "unhealthy", "checks": health_check["checks"], "error": str(e)}
     else:
         return health_check
+
 
 @app.get("/health/startup")
 async def startup_probe():
@@ -215,11 +206,7 @@ async def startup_probe():
     * K8s Action: Blocks Liveness/Readiness probes until this returns 200.
     * Rule: Useful for apps that need to load large ML models or caches on boot.
     """
-    return {
-        "status": "started",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
+    return {"status": "started", "timestamp": datetime.utcnow().isoformat()}
 
 
 if __name__ == "__main__":  # pragma: no cover
