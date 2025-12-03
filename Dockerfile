@@ -35,14 +35,13 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg bash
 
 # Create non-root user (Alpine syntax)
 RUN addgroup -S app && adduser -S app -G app
 
 # Copy the environment, but not the source code
 COPY --from=builder --chown=app:app /app /app
-COPY run.sh /app/run.sh
 
 RUN chmod +x /app/run.sh
 RUN chown app:app /app/run.sh
