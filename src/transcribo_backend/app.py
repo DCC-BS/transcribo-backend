@@ -174,7 +174,7 @@ async def readiness_probe(response: Response):
         async with aiohttp.ClientSession(timeout=timeout) as session:
             # Check LLM API health
             try:
-                async with session.get(f"{settings.llm_api}/health") as llm_response:
+                async with session.get(f"{settings.llm_health_check}") as llm_response:
                     if llm_response.status == 200:
                         health_check["checks"]["llm_api"] = "healthy"
                     else:
@@ -186,7 +186,7 @@ async def readiness_probe(response: Response):
 
             # Check Whisper API readiness
             try:
-                async with session.get(f"{settings.whisper_api}/readyz") as whisper_response:
+                async with session.get(f"{settings.whisper_health_check}") as whisper_response:
                     if whisper_response.status == 200:
                         health_check["checks"]["whisper_api"] = "healthy"
                     else:

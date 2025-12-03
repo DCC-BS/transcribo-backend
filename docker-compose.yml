@@ -1,35 +1,49 @@
 services:
-  faster_whisper:
-    build:
-      context: https://github.com/DCC-BS/bentoml-faster-whisper.git
-      dockerfile: ./Dockerfile
-      platforms:
-        - linux/amd64
-        - linux/arm64
+  llm:
+    platform: linux/amd64
+    image: vllm/vllm-openai:v0.11.2
+    container_name: llm
     ports:
-      - '50001:50001'
-    environment:
-      - http_proxy
-      - HTTP_PROXY
-      - https_proxy
-      - HTTPS_PROXY
-      - no_proxy
-      - NO_PROXY
-      - TIMEOUT
-      - MAX_CONCURRENCY
-      - MAX_BATCH_SIZE
-      - MAX_LATENCY_MS
-      - HF_AUTH_TOKEN=${HF_AUTH_TOKEN}
+      - "9000:8000"
+    env_file: ".env"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    ipc: host
     volumes:
-      - hugging_face_cache:/root/.cache/huggingface
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      Qwen/Qwen3-32B-AWQ
+      --port 8000
+      --max-model-len 8000
+      --max-num-seqs 1
+      --kv-cache-dtype fp8
+      --gpu-memory-utilization 0.90
+      --enable-auto-tool-choice
+      --tool-call-parser hermes
+      --tensor-parallel-size 1
+      --reasoning-parser qwen3
+      --uvicorn-log-level warning
+      --disable-log-requests
+
+  faster_whisper:
+    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.4.1
+    ports:
+      - "50001:50001"
+    env_file: ".env"
     deploy:
       resources:
         reservations:
           memory: 16g
           devices:
             - driver: nvidia
-              device_ids: [ '1' ]
-              capabilities: [ gpu ]
+              device_ids: ["1"]
+              capabilities: [gpu]
   # transcribo-backend:
   #   build:
   #     context: .

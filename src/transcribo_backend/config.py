@@ -17,6 +17,8 @@ class Settings:
     llm_api: str
     api_key: str
     hmac_secret: str
+    llm_health_check: str
+    whisper_health_check: str
 
     def __repr__(self) -> str:
         """Custom repr that masks sensitive data."""
@@ -41,6 +43,8 @@ class Settings:
         llm_api = os.getenv("LLM_API")
         api_key = os.getenv("API_KEY")
         hmac_secret = os.getenv("HMAC_SECRET")
+        llm_health_check = os.getenv("LLM_HEALTH_CHECK")
+        whisper_health_check = os.getenv("WHISPER_HEALTH_CHECK")
 
         if not whisper_api:
             raise ValueError("WHISPER_API environment variable is required")
@@ -54,7 +58,13 @@ class Settings:
         if not hmac_secret:
             raise ValueError("HMAC_SECRET environment variable is required")
 
-        return cls(whisper_api=whisper_api, llm_api=llm_api, api_key=api_key, hmac_secret=hmac_secret)
+        if not llm_health_check:
+            raise ValueError("LLM_HEALTH_CHECK environment variable is required")
+
+        if not whisper_health_check:
+            raise ValueError("WHISPER_HEALTH_CHECK environment variable is required")
+
+        return cls(whisper_api=whisper_api, llm_api=llm_api, api_key=api_key, hmac_secret=hmac_secret, llm_health_check=llm_health_check, whisper_health_check=whisper_health_check)
 
 
 # Create a global settings instance for easy import
