@@ -24,6 +24,7 @@ dependencies = [
     "structlog>=25.1.0",
     "audioop-lts; python_version >= '3.13'",
     "openai>=1.97.1",
+    "backend-common",
 ]
 
 [project.urls]
@@ -141,3 +142,6 @@ exclude_also = [
     "@(abc\\. )?abstractmethod",
     "@(abc\\. )?abstractproperty"
 ]
+
+[tool.uv.sources]
+backend-common = { git = "https://github.com/DCC-BS/backend-common" }

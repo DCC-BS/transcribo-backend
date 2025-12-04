@@ -1,12 +1,9 @@
-import logging
-import time
-from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
-import aiohttp
-from fastapi import FastAPI, Header, HTTPException, Response, UploadFile
+from backend_common.fastapi_health_probes import health_probe_router
+from fastapi import FastAPI, Header, HTTPException, UploadFile
 
 from transcribo_backend.config import settings
 from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
@@ -22,26 +19,26 @@ from transcribo_backend.services.whisper_service import (
 from transcribo_backend.utils.logger import get_logger, init_logger
 from transcribo_backend.utils.usage_tracking import get_pseudonymized_user_id
 
-START_TIME = time.time()
-
 init_logger()
 logger = get_logger("app")
 
-
-# Create a custom filter
-class EndpointFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        # Endpoints to exclude from logging
-        skip_paths = {"/health"}
-
-        # Extract the request path from the log message
-        return all(skip_path not in record.getMessage() for skip_path in skip_paths)
-
-# Configure the filter
-logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
-
 # Initialize FastAPI app
 app = FastAPI()
+
+app.include_router(
+    health_probe_router([
+        {
+            "name": "llm_api",
+            "health_check_url": settings.llm_health_check,
+            "api_key": settings.api_key,
+        },
+        {
+            "name": "whisper_api",
+            "health_check_url": settings.whisper_health_check,
+            "api_key": settings.api_key,
+        },
+    ])
+)
 
 
 class HealthCheckError(Exception):
@@ -154,76 +151,6 @@ async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, 
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to generate summary") from None
     else:
         return summary
-
-
-@app.get("/health/liveness")
-async def liveness_probe():
-    """
-    Liveness Probe
-    * Purpose: Checks if the application process is running and not deadlocked.
-    * K8s Action: If this fails, the container is KILLED and RESTARTED.
-    * Rule: Keep it simple. Do NOT check databases here.
-    """
-    return {"status": "up", "uptime_seconds": time.time() - START_TIME}
-
-
-@app.get("/health/readiness")
-async def readiness_probe(response: Response):
-    """
-    Readiness Probe
-    * Purpose: Checks if the app is ready to handle user requests (e.g., external APIs).
-    * K8s Action: If this fails, traffic stops sending to this pod.
-    * Rule: Check critical dependencies here.
-    """
-
-    health_check: dict[str, Any] = {"status": "ready", "checks": {"llm_api": "unknown", "whisper_api": "unknown"}}
-
-    try:
-        timeout = aiohttp.ClientTimeout(total=5.0)
-        async with aiohttp.ClientSession(
-            timeout=timeout, headers={"Authorization": f"Bearer {settings.api_key}"}
-        ) as session:
-            # Check LLM API health
-            try:
-                async with session.get(f"{settings.llm_health_check}") as llm_response:
-                    if llm_response.status == 200:
-                        health_check["checks"]["llm_api"] = "healthy"
-                    else:
-                        health_check["checks"]["llm_api"] = f"unhealthy (status: {llm_response.status})"
-                        raise HealthCheckError(f"LLM API returned status {llm_response.status}")
-            except aiohttp.ClientError as e:
-                health_check["checks"]["llm_api"] = f"error: {e!s}"
-                raise
-
-            # Check Whisper API readiness
-            try:
-                async with session.get(f"{settings.whisper_health_check}") as whisper_response:
-                    if whisper_response.status == 200:
-                        health_check["checks"]["whisper_api"] = "healthy"
-                    else:
-                        health_check["checks"]["whisper_api"] = f"unhealthy (status: {whisper_response.status})"
-                        raise HealthCheckError(f"Whisper API returned status {whisper_response.status}")
-            except aiohttp.ClientError as e:
-                health_check["checks"]["whisper_api"] = f"error: {e!s}"
-                raise
-    except Exception as e:
-        # If a critical dependency fails, we must return a 503.
-        # This tells K8s to stop sending traffic to this specific pod.
-        response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
-        return {"status": "unhealthy", "checks": health_check["checks"], "error": str(e)}
-    else:
-        return health_check
-
-
-@app.get("/health/startup")
-async def startup_probe():
-    """
-    Startup Probe
-    * Purpose: Checks if the application has finished initialization.
-    * K8s Action: Blocks Liveness/Readiness probes until this returns 200.
-    * Rule: Useful for apps that need to load large ML models or caches on boot.
-    """
-    return {"status": "started", "timestamp": datetime.now(UTC).isoformat()}
 
 
 if __name__ == "__main__":  # pragma: no cover
