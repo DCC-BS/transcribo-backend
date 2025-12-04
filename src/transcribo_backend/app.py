@@ -165,7 +165,7 @@ async def readiness_probe(response: Response):
 
     try:
         timeout = aiohttp.ClientTimeout(total=5.0)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, headers={ "Authorization": f"Bearer {settings.api_key}"}) as session:
             # Check LLM API health
             try:
                 async with session.get(f"{settings.llm_health_check}") as llm_response:
