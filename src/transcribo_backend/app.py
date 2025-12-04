@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -25,6 +26,19 @@ START_TIME = time.time()
 
 init_logger()
 logger = get_logger("app")
+
+
+# Create a custom filter
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Endpoints to exclude from logging
+        skip_paths = {"/health"}
+
+        # Extract the request path from the log message
+        return all(skip_path not in record.getMessage() for skip_path in skip_paths)
+
+# Configure the filter
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 # Initialize FastAPI app
 app = FastAPI()
