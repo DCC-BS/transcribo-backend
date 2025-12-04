@@ -35,7 +35,9 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN apk add --no-cache ffmpeg bash
+# Install packages with
+RUN apk add --no-cache --allow-untrusted ffmpeg bash || \
+    (apk update && apk add --no-cache ffmpeg bash)
 
 # Create non-root user (Alpine syntax)
 RUN addgroup -S app && adduser -S app -G app
