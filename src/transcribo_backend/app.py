@@ -2,7 +2,7 @@ import datetime
 import time
 from http import HTTPStatus
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import aiohttp
 from fastapi import FastAPI, Header, HTTPException, Response, UploadFile
@@ -161,11 +161,14 @@ async def readiness_probe(response: Response):
     * K8s Action: If this fails, traffic stops sending to this pod.
     * Rule: Check critical dependencies here.
     """
-    health_check = {"status": "ready", "checks": {"llm_api": "unknown", "whisper_api": "unknown"}}
+
+    health_check: dict[str, Any] = {"status": "ready", "checks": {"llm_api": "unknown", "whisper_api": "unknown"}}
 
     try:
         timeout = aiohttp.ClientTimeout(total=5.0)
-        async with aiohttp.ClientSession(timeout=timeout, headers={ "Authorization": f"Bearer {settings.api_key}"}) as session:
+        async with aiohttp.ClientSession(
+            timeout=timeout, headers={"Authorization": f"Bearer {settings.api_key}"}
+        ) as session:
             # Check LLM API health
             try:
                 async with session.get(f"{settings.llm_health_check}") as llm_response:
