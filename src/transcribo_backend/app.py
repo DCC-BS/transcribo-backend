@@ -1,5 +1,5 @@
-import datetime
 import time
+from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated, Any
@@ -209,7 +209,7 @@ async def startup_probe():
     * K8s Action: Blocks Liveness/Readiness probes until this returns 200.
     * Rule: Useful for apps that need to load large ML models or caches on boot.
     """
-    return {"status": "started", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "started", "timestamp": datetime.now(UTC).isoformat()}
 
 
 if __name__ == "__main__":  # pragma: no cover
