@@ -37,6 +37,7 @@ class EndpointFilter(logging.Filter):
         # Extract the request path from the log message
         return all(skip_path not in record.getMessage() for skip_path in skip_paths)
 
+
 # Configure the filter
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
