@@ -8,7 +8,7 @@ ENV UV_LINK_MODE=copy
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev git
 
 # Copy dependency files
 COPY pyproject.toml uv.lock ./

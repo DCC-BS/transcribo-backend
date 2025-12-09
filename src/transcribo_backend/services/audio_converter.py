@@ -1,9 +1,11 @@
 import subprocess
 import tempfile
+from http import HTTPStatus
 from pathlib import Path
 
-from fastapi import HTTPException
+from backend_common.fastapi_error_handling import api_error_exception
 
+from transcribo_backend.models.error_codes import TranscriboErrorCodes
 from transcribo_backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -136,4 +138,8 @@ def convert_to_mp3(file_data: bytes) -> bytes:
         raise
     except Exception as e:
         logger.exception("Unexpected error during audio conversion")
-        raise HTTPException(status_code=500, detail=f"Error converting to MP3: {e!s}") from e
+        raise api_error_exception(
+            errorId=TranscriboErrorCodes.AUDIO_CONVERSION_UNEXPECTED_ERROR,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            debugMessage=f"Error converting to MP3: {e!s}",
+        ) from e

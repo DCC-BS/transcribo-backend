@@ -1,11 +1,13 @@
 import json
 import uuid
+from http import HTTPStatus
 from typing import Any
 
 import aiohttp
-from fastapi import HTTPException
+from backend_common.fastapi_error_handling import api_error_exception
 
 from transcribo_backend.config import settings
+from transcribo_backend.models.error_codes import TranscriboErrorCodes
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
 from transcribo_backend.models.task_status import TaskStatus, TaskStatusEnum
@@ -30,7 +32,11 @@ async def transcribe_get_task_status(task_id: str) -> TaskStatus:
         TaskStatus: The current status of the task
     """
     if task_id not in taskId_to_progressId:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise api_error_exception(
+            errorId=TranscriboErrorCodes.TASK_NOT_FOUND,
+            status=HTTPStatus.NOT_FOUND,
+            debugMessage=f"Task not found: {task_id}",
+        )
 
     url = f"{settings.whisper_api}/audio/transcriptions/task/status?task_id={task_id}"
     progress_url = f"{settings.whisper_api}/progress/{taskId_to_progressId[task_id]}"
@@ -45,7 +51,11 @@ async def transcribe_get_task_status(task_id: str) -> TaskStatus:
             return TaskStatus(task_id=task_id, status=TaskStatusEnum.FAILED)
         response.raise_for_status()
         if progress_response.status == 404:
-            raise HTTPException(status_code=404, detail="Progress not found")
+            raise api_error_exception(
+                errorId=TranscriboErrorCodes.PROGRESS_NOT_FOUND,
+                status=HTTPStatus.NOT_FOUND,
+                debugMessage=f"Progress not found for task: {task_id}",
+            )
         progress_response.raise_for_status()
 
         progress = ProgressResponse(**await progress_response.json())
@@ -168,7 +178,11 @@ async def transcribe_submit_task(
             # Convert with balanced quality settings
             audio_data = convert_to_mp3(audio_data)
         except AudioConversionError as e:
-            raise HTTPException(status_code=400, detail=f"Audio conversion failed: {e}") from e
+            raise api_error_exception(
+                errorId=TranscriboErrorCodes.AUDIO_CONVERSION_FAILED,
+                status=HTTPStatus.BAD_REQUEST,
+                debugMessage=f"Audio conversion failed: {e}",
+            ) from e
 
     # Prepare form data
     form_data = aiohttp.FormData()

@@ -19,12 +19,6 @@ async def summarize(transcript: str) -> Summary:
     """
     Summarize a transcript of a meeting.
     """
-
-
-async def summarize(transcript: str) -> Summary:
-    """
-    Summarize a transcript of a meeting.
-    """
     try:
         client = AsyncOpenAI(api_key=settings.api_key, base_url=settings.llm_api)
         models = await client.models.list()
@@ -44,6 +38,13 @@ async def summarize(transcript: str) -> Summary:
             model=model,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": transcript}],
         )
+
+        if response.choices is None or len(response.choices) == 0:
+            raise ValueError("No choices returned from the model.")
+
+        if response.choices[0].message.content is None:
+            raise ValueError("No content returned in the model's response.")
+
         return Summary(summary=response.choices[0].message.content)
     except Exception as e:
         raise RuntimeError("Failed to generate summary.") from e

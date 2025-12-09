@@ -6,7 +6,7 @@ if [ -f .env ]; then
     . .env
 fi
 
-# Ensure PORT has a value (in case .env sets it to empty)
+# Ensure PORT has a value (in case .env sets it to empty)`
 PORT="${PORT:-8000}"
 
 # Function to display help information
