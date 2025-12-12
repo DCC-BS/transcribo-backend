@@ -5,7 +5,6 @@ from typing import Annotated
 from backend_common.fastapi_error_handling import api_error_exception
 from fastapi import APIRouter, Header, HTTPException, UploadFile
 
-from transcribo_backend.config import settings
 from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
 from transcribo_backend.models.error_codes import TranscriboErrorCodes
 from transcribo_backend.models.task_status import TaskStatus
