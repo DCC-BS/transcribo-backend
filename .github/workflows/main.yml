@@ -10,7 +10,7 @@ on:
 
 jobs:
   backend-ci:
-    uses: DCC-BS/ci-workflows/.github/workflows/python-backend-ci.yml@v4
+    uses: DCC-BS/ci-workflows/.github/workflows/python-backend-ci.yml@v5
     with:
       python_versions: '["3.10","3.11","3.12","3.13"]'
       quality_python_version: "3.12"
