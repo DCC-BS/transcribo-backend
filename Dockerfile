@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.13-alpine AS builder
+FROM python:3.14-alpine AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.9.14 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1
@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 # Stage 2: Runtime
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
