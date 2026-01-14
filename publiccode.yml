@@ -1,0 +1,37 @@
+publiccodeYmlVersion: 0.5.0
+name: Transcribo Backend
+url: https://github.com/DCC-BS/transcribo-backend
+softwareVersion: 0.5.4
+releaseDate: 2025-08-21
+platforms:
+  - web
+developmentStatus: beta
+softwareType: standalone/backend
+organisation:
+  name: DCC Data Competence Center - Statistisches Amt Kanton Basel-Stadt
+description:
+  en:
+    localisedName: Transcribo
+    shortDescription: "Transcribo is a modern web application for audio and video transcription with advanced editing capabilities."
+    longDescription: Transcribo Backend is a powerful Python FastAPI service that provides advanced audio and video transcription capabilities with speaker diarization and AI-powered text summarization. This backend service enables high-quality transcription using OpenAIs Whisper API and intelligent summarization using large language models.
+    documentation: https://dcc-bs.github.io/documentation/
+    apiDocumentation: https://dcc-bs.github.io/documentation/
+    features:
+      - LLM
+      - SpeechToText
+      - PWA
+    screenshots:
+      - https://github.com/DCC-BS/transcribo-frontend/blob/main/_imgs/Transcribo.png
+legal:
+  license: MIT-0
+maintenance:
+  type: internal
+  contacts:
+    - name: Data Competence Center
+      email: dcc@bs.ch
+      affiliation: Statistisches Amt Kanton Basel-Stadt
+localisation:
+  localisationReady: true
+  availableLanguages:
+    - en
+    - de-CH
