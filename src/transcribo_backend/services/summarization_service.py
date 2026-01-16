@@ -1,44 +1,19 @@
-from openai import AsyncOpenAI
-
+from transcribo_backend.agents.summarize_agent import create_summarize_agent
 from transcribo_backend.models.summary import Summary
 from transcribo_backend.utils.app_config import AppConfig
-
-system_prompt = """
-You are a meeting summary expert.
-You are given a transcript of a meeting and you need to summarize it.
-You need to summarize the meeting in a way that is easy to understand and use.
-You need to include the main points of the meeting, the decisions made, and the action items.
-You need to include the names of the participants.
-You use markdown to format the summary.
-Use the same language as used in the transcript to summarize the meeting.
-If you are not sure about the language, use German.
-"""
 
 
 class SummarizationService:
     def __init__(self, app_config: AppConfig):
         self.app_config = app_config
+        self.agent = create_summarize_agent(app_config)
 
     async def summarize(self, transcript: str) -> Summary:
         """
         Summarize a transcript of a meeting.
         """
         try:
-            client = AsyncOpenAI(api_key=self.app_config.api_key, base_url=self.app_config.api_key)
-            models = await client.models.list()
-
-            if not models.data:
-                raise ValueError("Could not find any models available from the API")
-
-            model = models.data[0].id
-        except Exception as e:
-            raise RuntimeError("Failed to initialize OpenAI client or fetch models.") from e
-
-        try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": transcript}],
-            )
-            return Summary(summary=response.choices[0].message.content)
+            result = await self.agent.run(transcript)
+            return Summary(summary=result.output)
         except Exception as e:
             raise RuntimeError("Failed to generate summary.") from e

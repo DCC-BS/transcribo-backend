@@ -24,6 +24,7 @@ dependencies = [
     "dcc-backend-common[fastapi]>=0.0.2",
     "dependency-injector>=4.48.3",
     "fastapi[standard]>=0.128.0",
+    "pydantic-ai>=1.43.0",
     "returns>=0.26.0",
 ]
 
