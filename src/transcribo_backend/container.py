@@ -1,0 +1,25 @@
+from dcc_backend_common.usage_tracking import UsageTrackingService
+from dependency_injector import containers, providers
+
+from transcribo_backend.services.summarization_service import SummarizationService
+from transcribo_backend.services.whisper_service import WhisperService
+from transcribo_backend.utils.app_config import AppConfig
+
+
+class Container(containers.DeclarativeContainer):
+    app_config: providers.Object[AppConfig] = providers.Object(AppConfig.from_env())
+
+    usage_tracking_service: providers.Singleton[UsageTrackingService] = providers.Singleton(
+        UsageTrackingService,
+        app_config=app_config,
+    )
+
+    whisper_service: providers.Singleton[WhisperService] = providers.Singleton(
+        WhisperService,
+        app_config=app_config,
+    )
+
+    summarization_service: providers.Singleton[SummarizationService] = providers.Singleton(
+        SummarizationService,
+        app_config=app_config,
+    )

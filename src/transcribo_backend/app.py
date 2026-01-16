@@ -1,233 +1,141 @@
-import logging
-import time
-from datetime import UTC, datetime
-from http import HTTPStatus
-from pathlib import Path
-from typing import Annotated, Any
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
-import aiohttp
-from fastapi import FastAPI, Header, HTTPException, Response, UploadFile
+from dcc_backend_common.fastapi_error_handling import inject_api_error_handler
+from dcc_backend_common.fastapi_health_probes import health_probe_router
+from dcc_backend_common.fastapi_health_probes.router import ServiceDependency
+from dcc_backend_common.logger import get_logger, init_logger
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from structlog.stdlib import BoundLogger
 
-from transcribo_backend.config import settings
-from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
-from transcribo_backend.models.summary import Summary, SummaryRequest
-from transcribo_backend.models.task_status import TaskStatus
-from transcribo_backend.models.transcription_response import TranscriptionResponse
-from transcribo_backend.services import summary_service
-from transcribo_backend.services.whisper_service import (
-    transcribe_get_task_result,
-    transcribe_get_task_status,
-    transcribe_submit_task,
-)
-from transcribo_backend.utils.logger import get_logger, init_logger
-from transcribo_backend.utils.usage_tracking import get_pseudonymized_user_id
-
-START_TIME = time.time()
-
-init_logger()
-logger = get_logger("app")
+from transcribo_backend.container import Container
+from transcribo_backend.routes import summarize_route, transcribe_route
+from transcribo_backend.utils.app_config import AppConfig
 
 
-# Create a custom filter
-class EndpointFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        # Endpoints to exclude from logging
-        skip_paths = {"/health"}
-
-        # Extract the request path from the log message
-        return all(skip_path not in record.getMessage() for skip_path in skip_paths)
-
-
-# Configure the filter
-logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
-
-# Initialize FastAPI app
-app = FastAPI()
-
-
-class HealthCheckError(Exception):
-    """Custom exception for health check failures."""
-
-    pass
-
-
-@app.get("/task/{task_id}/status")
-async def get_task_status(task_id: str) -> TaskStatus:
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Endpoint to get the status of a task by task_id.
+    Manage application lifespan events.
     """
-    status = await transcribe_get_task_status(task_id)
-    return status
+    logger = get_logger("app.lifespan")
+    logger.info("Checking container dependencies before startup")
+    app.state.container.check_dependencies()
+    logger.info("Container dependencies are healthy")
+
+    yield
 
 
-@app.get("/task/{task_id}/result")
-async def get_task_result(task_id: str) -> TranscriptionResponse:
+def _build_fastapi_app() -> FastAPI:
     """
-    Endpoint to get the status of a task by task_id.
+    Instantiate the FastAPI application with metadata and lifespan.
     """
-    status = await transcribe_get_task_result(task_id)
-    return status
-
-
-@app.post("/transcribe")
-async def submit_transcribe(
-    audio_file: UploadFile,
-    num_speakers: int | None = None,
-    language: str | None = None,
-    x_client_id: Annotated[str | None, Header()] = None,
-) -> TaskStatus:
-    """
-    Endpoint to submit a transcription task.
-    """
-
-    if audio_file.content_type is None:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Content type of the audio file is None")
-
-    if audio_file.filename is None:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Filename of the audio file is None")
-
-    if not is_audio_file(audio_file.content_type) and not is_video_file(audio_file.content_type):
-        raise HTTPException(status_code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE, detail="Unsupported file type")
-
-    # Read the uploaded file content
-    audio_data = await audio_file.read()
-
-    # Extract X-Client-Id from the request headers
-    pseudonym_id = get_pseudonymized_user_id(x_client_id or "unknown")
-    logger.info(
-        "app_event",
-        extra={
-            "pseudonym_id": pseudonym_id,
-            "event": "transcribe",
-            "num_speakers": num_speakers,
-            "file_size": len(audio_data),
-        },
+    app = FastAPI(
+        title="Transcribo",
+        description="API for transcription service with AI-powered language processing",
+        version="0.1.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
-    # Submit the transcription task
-    extension = Path(audio_file.filename).suffix.lower().strip(".")
-    try:
-        status = await transcribe_submit_task(
-            audio_data, extension, diarization_speaker_count=num_speakers, language=language
-        )
-    except HTTPException as e:
-        logger.exception("Failed to submit transcription task", exc_info=e)
-        if e.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-            raise HTTPException(status_code=HTTPStatus.TOO_MANY_REQUESTS, detail="Too many requests") from None
-        if e.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE:
-            raise HTTPException(status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE, detail="File is too large") from None
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to submit transcription task"
-        ) from None
-    except Exception as e:
-        logger.exception("Failed to submit transcription task", exc_info=e)
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to submit transcription task"
-        ) from None
-    return status
+    return app
 
 
-@app.post("/summarize")
-async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, Header()] = None) -> Summary:
+def _register_health_routes(app: FastAPI, config: AppConfig) -> None:
     """
-    Endpoint to summarize a text.
+    Register health routes for the application.
     """
-    model_context_length = 32_000
+    whisper_base_url = config.whisper_url.rstrip("v1")
+    llm_base_url = config.llm_base_url.rstrip("v1")
+    service_dependencies: list[ServiceDependency] = [
+        ServiceDependency(
+            name="whisper",
+            health_check_url=f"{whisper_base_url}readyz",
+            api_key=config.api_key,
+        ),
+        ServiceDependency(
+            name="llm",
+            health_check_url=f"{llm_base_url}health",
+            api_key=config.api_key,
+        ),
+    ]
+    app.include_router(health_probe_router(service_dependencies=service_dependencies))
 
-    if not request.transcript or not request.transcript.strip():
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Transcript is empty")
-    if len(request.transcript) > model_context_length * 4:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
-        )
-    # Extract X-Client-Id from the request headers
-    pseudonym_id = get_pseudonymized_user_id(x_client_id or "unknown")
-    logger.info(
-        "app_event",
-        extra={"pseudonym_id": pseudonym_id, "event": "summarize", "transcript_length": len(request.transcript)},
+
+def _configure_container(app: FastAPI, logger: BoundLogger) -> Container:
+    """
+    Configure the dependency injection container and attach it to app state.
+    """
+    logger.debug("Configuring dependency injection container")
+    container = Container()
+    logger.info("Dependency injection configured")
+    app.state.container = container
+    return container
+
+
+def _register_routes(app: FastAPI, logger: BoundLogger) -> None:
+    """
+    Register API routers.
+    """
+    logger.debug("Registering API routers")
+    app.include_router(summarize_route.create_router())
+    app.include_router(transcribe_route.create_router())
+    logger.info("All routers registered")
+
+
+def _configure_cors(app: FastAPI, client_url: str, logger: BoundLogger) -> None:
+    """
+    Apply CORS middleware configuration.
+    """
+    logger.debug("Setting up CORS middleware")
+
+    app.add_middleware(
+        CORSMiddleware,  # ty:ignore[invalid-argument-type]
+        allow_origins=[client_url],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
-
-    try:
-        summary = await summary_service.summarize(request.transcript)
-    except Exception as e:
-        logger.exception("Failed to summarize transcript", exc_info=e)
-        raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to generate summary") from None
-    else:
-        return summary
+    logger.info(f"CORS configured with origin: {client_url}")
 
 
-@app.get("/health/liveness")
-async def liveness_probe():
+def create_app() -> FastAPI:
     """
-    Liveness Probe
-    * Purpose: Checks if the application process is running and not deadlocked.
-    * K8s Action: If this fails, the container is KILLED and RESTARTED.
-    * Rule: Keep it simple. Do NOT check databases here.
-    """
-    return {"status": "up", "uptime_seconds": time.time() - START_TIME}
+    Create and configure the FastAPI application.
 
+    This function initializes the FastAPI application with:
+    - Environment variables loading
+    - Logging configuration
+    - Dependency injection container setup
+    - CORS middleware configuration
+    - API route registration
 
-@app.get("/health/readiness")
-async def readiness_probe(response: Response):
-    """
-    Readiness Probe
-    * Purpose: Checks if the app is ready to handle user requests (e.g., external APIs).
-    * K8s Action: If this fails, traffic stops sending to this pod.
-    * Rule: Check critical dependencies here.
+    Returns:
+        FastAPI: Configured FastAPI application instance
     """
 
-    health_check: dict[str, Any] = {"status": "ready", "checks": {"llm_api": "unknown", "whisper_api": "unknown"}}
+    init_logger()
 
-    try:
-        timeout = aiohttp.ClientTimeout(total=5.0)
-        async with aiohttp.ClientSession(
-            timeout=timeout, headers={"Authorization": f"Bearer {settings.api_key}"}
-        ) as session:
-            # Check LLM API health
-            try:
-                async with session.get(f"{settings.llm_health_check}") as llm_response:
-                    if llm_response.status == 200:
-                        health_check["checks"]["llm_api"] = "healthy"
-                    else:
-                        health_check["checks"]["llm_api"] = f"unhealthy (status: {llm_response.status})"
-                        raise HealthCheckError(f"LLM API returned status {llm_response.status}")
-            except aiohttp.ClientError as e:
-                health_check["checks"]["llm_api"] = f"error: {e!s}"
-                raise
+    logger = get_logger("app")
+    logger.info("Starting Transcribo API")
 
-            # Check Whisper API readiness
-            try:
-                async with session.get(f"{settings.whisper_health_check}") as whisper_response:
-                    if whisper_response.status == 200:
-                        health_check["checks"]["whisper_api"] = "healthy"
-                    else:
-                        health_check["checks"]["whisper_api"] = f"unhealthy (status: {whisper_response.status})"
-                        raise HealthCheckError(f"Whisper API returned status {whisper_response.status}")
-            except aiohttp.ClientError as e:
-                health_check["checks"]["whisper_api"] = f"error: {e!s}"
-                raise
-    except Exception as e:
-        # If a critical dependency fails, we must return a 503.
-        # This tells K8s to stop sending traffic to this specific pod.
-        response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
-        return {"status": "unhealthy", "checks": health_check["checks"], "error": str(e)}
-    else:
-        return health_check
+    app = _build_fastapi_app()
+
+    inject_api_error_handler(app)
+
+    container = _configure_container(app=app, logger=logger)
+    config = container.app_config()
+    logger.info(f"AppConfig loaded: {config}")
+
+    _register_health_routes(app=app, config=config)
+
+    _configure_cors(app=app, client_url=config.client_url, logger=logger)
+    _register_routes(app=app, logger=logger)
+
+    logger.info("API setup complete")
+    return app
 
 
-@app.get("/health/startup")
-async def startup_probe():
-    """
-    Startup Probe
-    * Purpose: Checks if the application has finished initialization.
-    * K8s Action: Blocks Liveness/Readiness probes until this returns 200.
-    * Rule: Useful for apps that need to load large ML models or caches on boot.
-    """
-    return {"status": "started", "timestamp": datetime.now(UTC).isoformat()}
-
-
-if __name__ == "__main__":  # pragma: no cover
-    import uvicorn
-
-    uvicorn.run("transcribo_backend:app", host="127.0.0.1", port=8000, reload=True)
+app = create_app()

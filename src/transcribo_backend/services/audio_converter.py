@@ -2,9 +2,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from dcc_backend_common.logger import get_logger
 from fastapi import HTTPException
-
-from transcribo_backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -12,7 +11,8 @@ logger = get_logger(__name__)
 class AudioConversionError(Exception):
     """Custom exception for audio conversion errors."""
 
-    pass
+    def __init__(self, error_message: str):
+        super().__init__(f"FFmpeg conversion failed: {error_message}")
 
 
 def is_mp3_format(audio_data: bytes) -> bool:
@@ -96,7 +96,7 @@ def convert_to_mp3(file_data: bytes) -> bytes:
                 logger.info("Running FFmpeg conversion with balanced quality (64k bitrate)")
 
                 # Run FFmpeg
-                result = subprocess.run(
+                result = subprocess.run(  # noqa: S603
                     cmd,
                     capture_output=True,
                     text=True,
@@ -106,7 +106,7 @@ def convert_to_mp3(file_data: bytes) -> bytes:
                 if result.returncode != 0:
                     error_msg = result.stderr or "Unknown FFmpeg error"
                     logger.error(f"FFmpeg conversion failed: {error_msg}")
-                    raise AudioConversionError(f"FFmpeg conversion failed: {error_msg}")
+                    raise AudioConversionError(error_msg)
 
                 # Read the converted file
                 with open(output_path, "rb") as f:
@@ -129,8 +129,8 @@ def convert_to_mp3(file_data: bytes) -> bytes:
                     logger.warning(f"Failed to clean up temporary files: {e}")
 
     except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
-        logger.error(f"FFmpeg subprocess error: {e}")
-        raise AudioConversionError(f"FFmpeg subprocess error: {e}") from e
+        logger.exception("FFmpeg subprocess error")
+        raise AudioConversionError(str(e)) from e
     except AudioConversionError:
         # Re-raise our custom exceptions as-is
         raise
