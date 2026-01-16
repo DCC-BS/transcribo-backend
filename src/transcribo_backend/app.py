@@ -1,6 +1,3 @@
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
 from dcc_backend_common.fastapi_error_handling import inject_api_error_handler
 from dcc_backend_common.fastapi_health_probes import health_probe_router
 from dcc_backend_common.fastapi_health_probes.router import ServiceDependency
@@ -14,19 +11,6 @@ from transcribo_backend.routes import summarize_route, transcribe_route
 from transcribo_backend.utils.app_config import AppConfig
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Manage application lifespan events.
-    """
-    logger = get_logger("app.lifespan")
-    logger.info("Checking container dependencies before startup")
-    app.state.container.check_dependencies()
-    logger.info("Container dependencies are healthy")
-
-    yield
-
-
 def _build_fastapi_app() -> FastAPI:
     """
     Instantiate the FastAPI application with metadata and lifespan.
@@ -37,7 +21,6 @@ def _build_fastapi_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
-        lifespan=lifespan,
     )
 
     return app
@@ -47,8 +30,8 @@ def _register_health_routes(app: FastAPI, config: AppConfig) -> None:
     """
     Register health routes for the application.
     """
-    whisper_base_url = config.whisper_url.rstrip("v1")
-    llm_base_url = config.llm_base_url.rstrip("v1")
+    whisper_base_url = config.whisper_url.removesuffix("v1")
+    llm_base_url = config.llm_base_url.removesuffix("v1")
     service_dependencies: list[ServiceDependency] = [
         ServiceDependency(
             name="whisper",
@@ -70,6 +53,8 @@ def _configure_container(app: FastAPI, logger: BoundLogger) -> Container:
     """
     logger.debug("Configuring dependency injection container")
     container = Container()
+    container.wire(modules=[transcribe_route, summarize_route])
+    container.check_dependencies()
     logger.info("Dependency injection configured")
     app.state.container = container
     return container

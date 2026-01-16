@@ -11,7 +11,7 @@ class Container(containers.DeclarativeContainer):
 
     usage_tracking_service: providers.Singleton[UsageTrackingService] = providers.Singleton(
         UsageTrackingService,
-        app_config=app_config,
+        hmac_secret=app_config.provided.hmac_secret,
     )
 
     whisper_service: providers.Singleton[WhisperService] = providers.Singleton(

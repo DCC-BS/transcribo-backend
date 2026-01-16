@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 @inject
 def create_router(  # noqa: C901
-    whisper_service: WhisperService = Provide[Container.whisper_service.provider],
+    whisper_service: WhisperService = Provide[Container.whisper_service],
     usage_tracking_service: UsageTrackingService = Provide[Container.usage_tracking_service],
 ) -> APIRouter:
     """

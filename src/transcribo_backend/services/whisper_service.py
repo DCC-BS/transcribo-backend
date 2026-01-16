@@ -19,13 +19,13 @@ from transcribo_backend.utils.app_config import AppConfig
 
 
 class WhisperService:
-    def __init__(self, config: AppConfig) -> None:
-        self.config = config
+    def __init__(self, app_config: AppConfig) -> None:
+        self.app_config = app_config
         one_day = 60 * 60 * 24
         self.taskId_to_progressId: TTLCache[str, str] = TTLCache(maxsize=1024, ttl=one_day)
         timeout = httpx.Timeout(10.0)
         limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
-        api_key_header = {"Authorization": f"Bearer {self.config.api_key}"}
+        api_key_header = {"Authorization": f"Bearer {self.app_config.api_key}"}
         self.client = httpx.AsyncClient(timeout=timeout, limits=limits, headers=api_key_header)
 
     async def transcribe_get_task_status(self, task_id: str) -> TaskStatus:
@@ -40,7 +40,7 @@ class WhisperService:
         """
         if task_id not in self.taskId_to_progressId:
             raise HTTPException(status_code=404, detail="Task not found")
-        whisper_url = self.config.whisper_url
+        whisper_url = self.app_config.whisper_url
         url = f"{whisper_url}/audio/transcriptions/task/status?task_id={task_id}"
         progress_url = f"{whisper_url}/progress/{self.taskId_to_progressId[task_id]}"
 
@@ -68,7 +68,7 @@ class WhisperService:
         Returns:
             TranscriptionVerboseJsonResponse: The parsed transcription result
         """
-        whisper_url = self.config.whisper_url
+        whisper_url = self.app_config.whisper_url
         url = f"{whisper_url}/audio/transcriptions/task/get?task_id={task_id}"
 
         # Get the transcription result
@@ -98,7 +98,7 @@ class WhisperService:
         Returns:
             TaskStatus: The updated status of the task
         """
-        whisper_url = self.config.whisper_url
+        whisper_url = self.app_config.whisper_url
         url = f"{whisper_url}/audio/transcriptions/task/retry?task_id={task_id}"
 
         response = await self.client.post(url)
@@ -115,7 +115,7 @@ class WhisperService:
         Returns:
             TaskStatus: The updated status of the task
         """
-        whisper_url = self.config.whisper_url
+        whisper_url = self.app_config.whisper_url
         url = f"{whisper_url}/audio/transcriptions/task/cancel?task_id={task_id}"
 
         response = await self.client.put(url)
@@ -156,7 +156,7 @@ class WhisperService:
         Returns:
             TaskStatus: The status of the created task
         """
-        whisper_url = self.config.whisper_url
+        whisper_url = self.app_config.whisper_url
         url = f"{whisper_url}/audio/transcriptions/task/submit"
 
         if temperature is None:

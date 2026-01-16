@@ -15,10 +15,11 @@ logger = get_logger(__name__)
 
 @inject
 def create_router(
-    summarization_service: SummarizationService = Provide[Container.summarization_service.provider],
+    summarization_service: SummarizationService = Provide[Container.summarization_service],
     usage_tracking_service: UsageTrackingService = Provide[Container.usage_tracking_service],
 ) -> APIRouter:
     """Create the router for the summarize endpoint."""
+    logger.info("Creating router for summarize endpoint")
     router = APIRouter()
 
     @router.post("/summarize")

@@ -16,15 +16,15 @@ If you are not sure about the language, use German.
 
 
 class SummarizationService:
-    def __init__(self, config: AppConfig):
-        self.config = config
+    def __init__(self, app_config: AppConfig):
+        self.app_config = app_config
 
     async def summarize(self, transcript: str) -> Summary:
         """
         Summarize a transcript of a meeting.
         """
         try:
-            client = AsyncOpenAI(api_key=self.config.api_key, base_url=self.config.api_key)
+            client = AsyncOpenAI(api_key=self.app_config.api_key, base_url=self.app_config.api_key)
             models = await client.models.list()
 
             if not models.data:
