@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 from cachetools import TTLCache
 from fastapi import HTTPException
+from returns.future import future_safe
 
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
@@ -28,6 +29,7 @@ class WhisperService:
         api_key_header = {"Authorization": f"Bearer {self.app_config.api_key}"}
         self.client = httpx.AsyncClient(timeout=timeout, limits=limits, headers=api_key_header)
 
+    @future_safe
     async def transcribe_get_task_status(self, task_id: str) -> TaskStatus:
         """
         Checks the status of an ongoing transcription task.
@@ -58,6 +60,7 @@ class WhisperService:
         progress = ProgressResponse(**progress_response.json())
         return TaskStatus(**response.json(), progress=progress.progress)
 
+    @future_safe
     async def transcribe_get_task_result(self, task_id: str) -> TranscriptionResponse:
         """
         Retrieves the result of a completed transcription task.
@@ -88,6 +91,7 @@ class WhisperService:
 
         return TranscriptionResponse(**result_data)
 
+    @future_safe
     async def transcribe_retry_task(self, task_id: str) -> TaskStatus:
         """
         Retries a failed transcription task.
@@ -105,6 +109,7 @@ class WhisperService:
         response.raise_for_status()
         return TaskStatus(**response.json())
 
+    @future_safe
     async def transcribe_cancel_task(self, task_id: str) -> TaskStatus:
         """
         Cancels an ongoing transcription task.
@@ -122,6 +127,7 @@ class WhisperService:
         response.raise_for_status()
         return TaskStatus(**response.json())
 
+    @future_safe
     async def transcribe_submit_task(
         self,
         audio_data: bytes,
@@ -166,7 +172,8 @@ class WhisperService:
         if not is_mp3_format(audio_data):
             try:
                 # Convert with balanced quality settings
-                audio_data = convert_to_mp3(audio_data)
+                # convert_to_mp3 now returns IOResult, we unwrap it to get the value or raise exception
+                audio_data = convert_to_mp3(audio_data).unwrap()
             except AudioConversionError as e:
                 raise HTTPException(status_code=400, detail=f"Audio conversion failed: {e}") from e
 

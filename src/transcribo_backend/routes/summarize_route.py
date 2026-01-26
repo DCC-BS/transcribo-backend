@@ -45,7 +45,8 @@ def create_router(
         )
 
         try:
-            summary = await summarization_service.summarize(request.transcript)
+            result = await summarization_service.summarize(request.transcript)
+            summary = result.unwrap()
         except Exception as e:
             logger.exception("Failed to summarize transcript", exc_info=e)
             raise HTTPException(

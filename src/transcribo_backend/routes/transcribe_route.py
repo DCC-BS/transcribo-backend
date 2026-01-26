@@ -32,16 +32,16 @@ def create_router(  # noqa: C901
         """
         Endpoint to get the status of a task by task_id.
         """
-        status = await whisper_service.transcribe_get_task_status(task_id)
-        return status
+        result = await whisper_service.transcribe_get_task_status(task_id)
+        return result.unwrap()
 
     @router.get("/task/{task_id}/result")
     async def get_task_result(task_id: str) -> TranscriptionResponse:
         """
         Endpoint to get the status of a task by task_id.
         """
-        status = await whisper_service.transcribe_get_task_result(task_id)
-        return status
+        result = await whisper_service.transcribe_get_task_result(task_id)
+        return result.unwrap()
 
     @router.post("/transcribe")
     async def submit_transcribe(
@@ -76,9 +76,10 @@ def create_router(  # noqa: C901
         # Submit the transcription task
         extension = Path(audio_file.filename).suffix.lower().strip(".")
         try:
-            status = await whisper_service.transcribe_submit_task(
+            result = await whisper_service.transcribe_submit_task(
                 audio_data, extension, diarization_speaker_count=num_speakers, language=language
             )
+            status = result.unwrap()
         except HTTPException as e:
             logger.exception("Failed to submit transcription task", exc_info=e)
             if e.status_code == HTTPStatus.TOO_MANY_REQUESTS:

@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from dcc_backend_common.logger import get_logger
-from fastapi import HTTPException
+from returns.io import impure_safe
 
 logger = get_logger(__name__)
 
@@ -45,6 +45,7 @@ def is_mp3_format(audio_data: bytes) -> bool:
     return False
 
 
+@impure_safe
 def convert_to_mp3(file_data: bytes) -> bytes:
     """
     Convert audio or video data to MP3 format using FFmpeg with balanced quality settings.
@@ -53,11 +54,10 @@ def convert_to_mp3(file_data: bytes) -> bytes:
         file_data: The audio/video bytes
 
     Returns:
-        Bytes of the audio in MP3 format
+        IOResult[bytes, Exception]: The converted audio in MP3 format or an error
 
     Raises:
-        AudioConversionError: If conversion fails
-        HTTPException: For HTTP-specific errors
+        AudioConversionError: If conversion fails (inside the Result)
     """
     try:
         file_size_mb = len(file_data) / (1024 * 1024)
@@ -131,9 +131,3 @@ def convert_to_mp3(file_data: bytes) -> bytes:
     except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
         logger.exception("FFmpeg subprocess error")
         raise AudioConversionError(str(e)) from e
-    except AudioConversionError:
-        # Re-raise our custom exceptions as-is
-        raise
-    except Exception as e:
-        logger.exception("Unexpected error during audio conversion")
-        raise HTTPException(status_code=500, detail=f"Error converting to MP3: {e!s}") from e
