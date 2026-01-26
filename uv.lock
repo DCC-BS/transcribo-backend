@@ -619,12 +619,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/a3/198f7b4531af24118bf61ac786919c33f6241646ce47d867957267983585/dcc_backend_common-0.1.0-py3-none-any.whl", hash = "sha256:598bbe019a40b898eba0508880ec4d085858d5f7c0e1a09b33ec47c001172cb5", size = 18355, upload-time = "2026-01-26T09:09:50.048Z" },
 ]
 
-[package.optional-dependencies]
-fastapi = [
-    { name = "aiohttp" },
-    { name = "fastapi" },
-]
-
 [[package]]
 name = "dependency-injector"
 version = "4.48.3"
@@ -3665,7 +3659,7 @@ source = { editable = "." }
 dependencies = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "cachetools" },
-    { name = "dcc-backend-common", extra = ["fastapi"] },
+    { name = "dcc-backend-common" },
     { name = "dependency-injector" },
     { name = "fastapi", extra = ["standard"] },
     { name = "pydantic-ai" },
@@ -3691,7 +3685,7 @@ dev = [
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "cachetools", specifier = ">=6.2.4" },
-    { name = "dcc-backend-common", extras = ["fastapi"], specifier = ">=0.0.2" },
+    { name = "dcc-backend-common", specifier = ">=0.0.2" },
     { name = "dependency-injector", specifier = ">=4.48.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
     { name = "pydantic-ai", specifier = ">=1.43.0" },
