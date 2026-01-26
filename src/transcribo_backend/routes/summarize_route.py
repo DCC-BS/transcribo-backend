@@ -1,10 +1,12 @@
 from http import HTTPStatus
 from typing import Annotated
 
+from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, ApiErrorException, api_error_exception
 from dcc_backend_common.logger import get_logger
 from dcc_backend_common.usage_tracking import UsageTrackingService
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header
+from returns.result import Failure, Success
 
 from transcribo_backend.container import Container
 from transcribo_backend.models.summary import Summary, SummaryRequest
@@ -23,18 +25,25 @@ def create_router(
     router = APIRouter()
 
     @router.post("/summarize")
-    async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, Header()] = None) -> Summary:
+    async def summarize(
+        request: SummaryRequest, x_client_id: Annotated[str | None, Header()] = None
+    ) -> Summary:  # ty:ignore[invalid-return-type]
         """
         Endpoint to summarize a text.
         """
         model_context_length = 32_000
 
         if not request.transcript or not request.transcript.strip():
-            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Transcript is empty")
+            raise api_error_exception(
+                errorId=ApiErrorCodes.INVALID_REQUEST,
+                status=HTTPStatus.BAD_REQUEST,
+                debugMessage="Transcript cannot be empty",
+            )
         if len(request.transcript) > model_context_length * 4:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
+            raise api_error_exception(
+                errorId=ApiErrorCodes.INVALID_REQUEST,
+                status=HTTPStatus.BAD_REQUEST,
+                debugMessage=f"Transcript is too long. Maximum length is {model_context_length * 4} characters.",
             )
         # Extract X-Client-Id from the request headers
         usage_tracking_service.log_event(
@@ -44,15 +53,17 @@ def create_router(
             transcript_length=len(request.transcript),
         )
 
-        try:
-            result = await summarization_service.summarize(request.transcript)
-            summary = result.unwrap()
-        except Exception as e:
-            logger.exception("Failed to summarize transcript", exc_info=e)
-            raise HTTPException(
-                status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to generate summary"
-            ) from None
-        else:
-            return summary
+        result = await summarization_service.summarize(request.transcript)
+
+        match result:
+            case Success(summary):
+                return summary
+            case Failure(error):
+                logger.exception("Failed to summarize transcript", exc_info=error)
+                raise ApiErrorException(
+                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                    error_code=ApiErrorCodes.INTERNAL_ERROR,
+                    message="Failed to generate summary",
+                ) from error
 
     return router
