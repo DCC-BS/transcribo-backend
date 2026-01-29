@@ -5,6 +5,14 @@
 
 Transcribo Backend is a powerful Python FastAPI service that provides advanced audio and video transcription capabilities with speaker diarization and AI-powered text summarization. This backend service enables high-quality transcription using OpenAI's Whisper API and intelligent summarization using large language models.
 
+---
+
+<p align="center">
+  <a href="https://dcc-bs.github.io/documentation/">DCC Documentation & Guidelines</a> | <a href="https://www.bs.ch/daten/databs/dcc">DCC Website</a>
+</p>
+
+---
+
 ## Features
 
 - **Audio & Video Transcription**: High-quality transcription of audio and video files using OpenAI's Whisper API
