@@ -438,14 +438,14 @@ name = "cohere"
 version = "5.20.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fastavro" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "requests" },
-    { name = "tokenizers" },
-    { name = "types-requests" },
-    { name = "typing-extensions" },
+    { name = "fastavro", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx", marker = "sys_platform != 'emscripten'" },
+    { name = "pydantic", marker = "sys_platform != 'emscripten'" },
+    { name = "pydantic-core", marker = "sys_platform != 'emscripten'" },
+    { name = "requests", marker = "sys_platform != 'emscripten'" },
+    { name = "tokenizers", marker = "sys_platform != 'emscripten'" },
+    { name = "types-requests", marker = "sys_platform != 'emscripten'" },
+    { name = "typing-extensions", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/dd/52/08564d1820970010d30421cd6e36f2e4ca552646504d3fe532eef282c88d/cohere-5.20.2.tar.gz", hash = "sha256:0aa9f3735626b70eedf15c231c61f3a58e7f8bbe5f0509fe7b2e6606c5d420f1", size = 180820, upload-time = "2026-01-23T13:42:51.308Z" }
 wheels = [
@@ -604,7 +604,7 @@ wheels = [
 
 [[package]]
 name = "dcc-backend-common"
-version = "0.1.0"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "datasets" },
@@ -614,9 +614,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bf/71/596d4f9b4f076f406cd015150cf629e7bbfbb3373a15d9a1d2ed1176e213/dcc_backend_common-0.1.0.tar.gz", hash = "sha256:6d929c6b119b3738f0169ab1ca623dcc4a83b08e3de7a812f540c6c85a74deaa", size = 215742, upload-time = "2026-01-26T09:09:51.49Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/d3/1a38dc3833b2d55bb62774bb1b7c32a1c045b2a79e3c6a264e2297e0756b/dcc_backend_common-0.1.4.tar.gz", hash = "sha256:187a34e6783bf55657bee5eb823a5aebbda8ddba396d12c5d65a896cc2816841", size = 235060, upload-time = "2026-02-04T10:20:35.454Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/a3/198f7b4531af24118bf61ac786919c33f6241646ce47d867957267983585/dcc_backend_common-0.1.0-py3-none-any.whl", hash = "sha256:598bbe019a40b898eba0508880ec4d085858d5f7c0e1a09b33ec47c001172cb5", size = 18355, upload-time = "2026-01-26T09:09:50.048Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/6e/e69f2b3b88de268429cce37dd0fd9f0d8b5bbc53c78455d0a38d6d57de57/dcc_backend_common-0.1.4-py3-none-any.whl", hash = "sha256:48cf6a8fdb20265a6bcea9714e4c2da1ad0bb10e211da886b64c8cd304f09c44", size = 23952, upload-time = "2026-02-04T10:20:36.364Z" },
 ]
 
 [[package]]
@@ -3685,7 +3685,7 @@ dev = [
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "cachetools", specifier = ">=6.2.4" },
-    { name = "dcc-backend-common", specifier = ">=0.0.2" },
+    { name = "dcc-backend-common", specifier = ">=0.1.4" },
     { name = "dependency-injector", specifier = ">=4.48.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
     { name = "pydantic-ai", specifier = ">=1.43.0" },
@@ -3760,7 +3760,7 @@ name = "types-requests"
 version = "2.32.4.20260107"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "urllib3" },
+    { name = "urllib3", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0f/f3/a0663907082280664d745929205a89d41dffb29e89a50f753af7d57d0a96/types_requests-2.32.4.20260107.tar.gz", hash = "sha256:018a11ac158f801bfa84857ddec1650750e393df8a004a8a9ae2a9bec6fcb24f", size = 23165, upload-time = "2026-01-07T03:20:54.091Z" }
 wheels = [

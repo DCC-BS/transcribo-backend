@@ -175,7 +175,7 @@ class WhisperService:
             try:
                 # Convert with balanced quality settings
                 # convert_to_mp3 now returns IOResult, we unwrap it to get the value or raise exception
-                audio_data = convert_to_mp3(audio_data).unwrap()
+                audio_data = convert_to_mp3(audio_data).unwrap()._inner_value
             except AudioConversionError as e:
                 raise HTTPException(status_code=400, detail=f"Audio conversion failed: {e}") from e
 

@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from dcc_backend_common.logger import get_logger
-from returns.io import IOResult, impure_safe
+from returns.io import impure_safe
 
 logger = get_logger(__name__)
 
@@ -46,7 +46,7 @@ def is_mp3_format(audio_data: bytes) -> bool:
 
 
 @impure_safe
-def convert_to_mp3(file_data: bytes) -> IOResult[bytes, Exception]:
+def convert_to_mp3(file_data: bytes) -> bytes:
     """
     Convert audio or video data to MP3 format using FFmpeg with balanced quality settings.
 
@@ -110,6 +110,7 @@ def convert_to_mp3(file_data: bytes) -> IOResult[bytes, Exception]:
 
                 # Read the converted file
                 with open(output_path, "rb") as f:
+                    print(type(f))
                     converted_data = f.read()
 
                 output_size_mb = len(converted_data) / (1024 * 1024)
