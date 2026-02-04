@@ -56,7 +56,7 @@ def create_router(
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
-        error = result.failure()
+        error = result.failure()._inner_value
         logger.exception("Failed to summarize transcript", exc_info=error)
         raise api_error_exception(
             errorId=ApiErrorCodes.UNEXPECTED_ERROR,

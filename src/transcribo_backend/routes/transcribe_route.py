@@ -1,5 +1,4 @@
 from http import HTTPStatus
-from pathlib import Path
 from typing import Annotated
 
 import httpx
@@ -15,8 +14,6 @@ from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
 from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
 from transcribo_backend.services.whisper_service import WhisperService
-
-logger = get_logger(__name__)
 
 
 def _is_not_found_error(error: Exception) -> bool:
@@ -36,6 +33,7 @@ def create_router(  # noqa: C901
     """
     Create the router for the transcription API.
     """
+    logger = get_logger(__name__)
     logger.info("Creating transcription router")
     router = APIRouter()
 
@@ -48,7 +46,8 @@ def create_router(  # noqa: C901
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
-        error = result.failure()
+        error = result.failure()._inner_value
+        logger.exception(f"Failed to get task status for {task_id}", exc_info=error)
         if _is_not_found_error(error):
             raise api_error_exception(
                 errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
@@ -56,7 +55,6 @@ def create_router(  # noqa: C901
                 debugMessage=f"Task {task_id} not found",
             ) from error
 
-        logger.exception(f"Failed to get task status for {task_id}", exc_info=error)
         raise api_error_exception(
             errorId=ApiErrorCodes.UNEXPECTED_ERROR,
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -72,7 +70,8 @@ def create_router(  # noqa: C901
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
-        error = result.failure()
+        error = result.failure()._inner_value
+        logger.exception(f"Failed to get task result for {task_id}", exc_info=error)
         if _is_not_found_error(error):
             raise api_error_exception(
                 errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
@@ -80,7 +79,6 @@ def create_router(  # noqa: C901
                 debugMessage=f"Task result for {task_id} not found",
             ) from error
 
-        logger.exception(f"Failed to get task result for {task_id}", exc_info=error)
         raise api_error_exception(
             errorId=ApiErrorCodes.UNEXPECTED_ERROR,
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -97,7 +95,6 @@ def create_router(  # noqa: C901
         """
         Endpoint to submit a transcription task.
         """
-
         if audio_file.content_type is None:
             raise api_error_exception(
                 errorId=ApiErrorCodes.INVALID_REQUEST,
@@ -130,15 +127,14 @@ def create_router(  # noqa: C901
         )
 
         # Submit the transcription task
-        extension = Path(audio_file.filename).suffix.lower().strip(".")
         result = await whisper_service.transcribe_submit_task(
-            audio_data, extension, diarization_speaker_count=num_speakers, language=language
+            audio_data, diarization_speaker_count=num_speakers, language=language
         )
 
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
-        error = result.failure()
+        error = result.failure()._inner_value
         logger.exception("Failed to submit transcription task", exc_info=error)
 
         status_code = HTTPStatus.INTERNAL_SERVER_ERROR
