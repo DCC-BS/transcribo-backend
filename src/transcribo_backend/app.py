@@ -1,3 +1,6 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from dcc_backend_common.fastapi_error_handling import inject_api_error_handler
 from dcc_backend_common.fastapi_health_probes import health_probe_router
 from dcc_backend_common.fastapi_health_probes.router import ServiceDependency
@@ -11,6 +14,22 @@ from transcribo_backend.routes import summarize_route, transcribe_route
 from transcribo_backend.utils.app_config import AppConfig
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Lifespan context manager for startup and shutdown events.
+    """
+    # Startup: nothing to do here, container is configured synchronously
+    yield
+    # Shutdown: close resources
+    logger = get_logger("app")
+    logger.info("Shutting down application, closing resources...")
+    container: Container = app.state.container
+    whisper_service = container.whisper_service()
+    await whisper_service.aclose()
+    logger.info("Resources closed successfully")
+
+
 def _build_fastapi_app() -> FastAPI:
     """
     Instantiate the FastAPI application with metadata and lifespan.
@@ -21,6 +40,7 @@ def _build_fastapi_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=_lifespan,
     )
 
     return app

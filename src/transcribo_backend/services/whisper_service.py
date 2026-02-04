@@ -29,6 +29,10 @@ class WhisperService:
         api_key_header = {"Authorization": f"Bearer {self.app_config.api_key}"}
         self.client = httpx.AsyncClient(timeout=timeout, limits=limits, headers=api_key_header)
 
+    async def aclose(self) -> None:
+        """Close the HTTP client to prevent connection leaks."""
+        await self.client.aclose()
+
     @future_safe
     async def transcribe_get_task_status(self, task_id: str) -> TaskStatus:
         """
@@ -131,7 +135,6 @@ class WhisperService:
     async def transcribe_submit_task(
         self,
         audio_data: bytes,
-        file_format: str,
         model: str = "large-v2",
         language: str | None = None,
         prompt: str | None = None,
@@ -148,7 +151,6 @@ class WhisperService:
 
         Args:
             audio_data: The binary audio data to transcribe
-            file_format: The format of the audio data
             model: The Whisper model to use
             language: The language code for transcription
             prompt: Optional prompt for the model

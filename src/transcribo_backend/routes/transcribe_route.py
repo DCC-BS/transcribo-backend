@@ -2,6 +2,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, api_error_exception
 from dcc_backend_common.logger import get_logger
 from dcc_backend_common.usage_tracking import UsageTrackingService
@@ -16,6 +17,15 @@ from transcribo_backend.models.transcription_response import TranscriptionRespon
 from transcribo_backend.services.whisper_service import WhisperService
 
 logger = get_logger(__name__)
+
+
+def _is_not_found_error(error: Exception) -> bool:
+    """Check if the error represents a 'not found' condition (404)."""
+    if isinstance(error, HTTPException):
+        return error.status_code == HTTPStatus.NOT_FOUND
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code == HTTPStatus.NOT_FOUND
+    return False
 
 
 @inject
@@ -37,27 +47,43 @@ def create_router(  # noqa: C901
         result = await whisper_service.transcribe_get_task_status(task_id)
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
+
         error = result.failure()
+        if _is_not_found_error(error):
+            raise api_error_exception(
+                errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
+                status=HTTPStatus.NOT_FOUND,
+                debugMessage=f"Task {task_id} not found",
+            ) from error
+
         logger.exception(f"Failed to get task status for {task_id}", exc_info=error)
         raise api_error_exception(
-            errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
-            status=HTTPStatus.NOT_FOUND,
+            errorId=ApiErrorCodes.UNEXPECTED_ERROR,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
             debugMessage="Failed to get task status",
         ) from error
 
     @router.get("/task/{task_id}/result")
     async def get_task_result(task_id: str) -> TranscriptionResponse:
         """
-        Endpoint to get the status of a task by task_id.
+        Endpoint to get the result of a task by task_id.
         """
         result = await whisper_service.transcribe_get_task_result(task_id)
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
+
         error = result.failure()
+        if _is_not_found_error(error):
+            raise api_error_exception(
+                errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
+                status=HTTPStatus.NOT_FOUND,
+                debugMessage=f"Task result for {task_id} not found",
+            ) from error
+
         logger.exception(f"Failed to get task result for {task_id}", exc_info=error)
         raise api_error_exception(
-            errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
-            status=HTTPStatus.NOT_FOUND,
+            errorId=ApiErrorCodes.UNEXPECTED_ERROR,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
             debugMessage="Failed to get task result",
         ) from error
 
