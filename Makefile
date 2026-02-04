@@ -10,8 +10,8 @@ check: ## Run code quality tools.
 	@uv lock --locked
 	@echo "🚀 Linting code: Running pre-commit"
 	@uv run pre-commit run -a
-	@echo "🚀 Static type checking: Running pyrefly"
-	@uv run pyrefly check ./src/transcribo_backend
+	@echo "🚀 Static type checking: Running ty"
+	@uv run ty check
 
 .PHONY: test
 test: ## Test the code with pytest
@@ -36,7 +36,7 @@ run: ## Run the application
 .PHONY: dev
 dev: ## Run the application in development mode
 	@echo "🚀 Running the application in development mode"
-	@uv run fastapi dev ./src/transcribo_backend/app.py --port 8000
+	@uv run --env-file .env fastapi dev ./src/transcribo_backend/app.py --port 8000
 
 .PHONY: build
 build: clean-build ## Build wheel file

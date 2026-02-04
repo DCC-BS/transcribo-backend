@@ -1,3 +1,8 @@
+# TODO
+returns library
+api error from backend common
+
+
 # Transcribo Backend
 
 Transcribo Backend is a powerful Python FastAPI service that provides advanced audio and video transcription capabilities with speaker diarization and AI-powered text summarization. This backend service enables high-quality transcription using OpenAI's Whisper API and intelligent summarization using large language models.

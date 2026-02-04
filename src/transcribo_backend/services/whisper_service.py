@@ -2,10 +2,11 @@ import json
 import uuid
 from typing import Any
 
-import aiohttp
+import httpx
+from cachetools import TTLCache
 from fastapi import HTTPException
+from returns.future import future_safe
 
-from transcribo_backend.config import settings
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
 from transcribo_backend.models.task_status import TaskStatus, TaskStatusEnum
@@ -15,64 +16,75 @@ from transcribo_backend.services.audio_converter import (
     convert_to_mp3,
     is_mp3_format,
 )
+from transcribo_backend.utils.app_config import AppConfig
 
-taskId_to_progressId: dict[str, str] = {}
 
+class WhisperService:
+    def __init__(self, app_config: AppConfig) -> None:
+        self.app_config = app_config
+        one_day = 60 * 60 * 24
+        self.taskId_to_progressId: TTLCache[str, str] = TTLCache(maxsize=1024, ttl=one_day)
+        timeout = httpx.Timeout(10.0)
+        limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        api_key_header = {"Authorization": f"Bearer {self.app_config.api_key}"}
+        self.client = httpx.AsyncClient(timeout=timeout, limits=limits, headers=api_key_header)
 
-async def transcribe_get_task_status(task_id: str) -> TaskStatus:
-    """
-    Checks the status of an ongoing transcription task.
+    async def aclose(self) -> None:
+        """Close the HTTP client to prevent connection leaks."""
+        await self.client.aclose()
 
-    Args:
-        task_id: The ID of the task to check
+    @future_safe
+    async def transcribe_get_task_status(self, task_id: str) -> TaskStatus:
+        """
+        Checks the status of an ongoing transcription task.
 
-    Returns:
-        TaskStatus: The current status of the task
-    """
-    if task_id not in taskId_to_progressId:
-        raise HTTPException(status_code=404, detail="Task not found")
+        Args:
+            task_id: The ID of the task to check
 
-    url = f"{settings.whisper_api}/audio/transcriptions/task/status?task_id={task_id}"
-    progress_url = f"{settings.whisper_api}/progress/{taskId_to_progressId[task_id]}"
+        Returns:
+            TaskStatus: The current status of the task
+        """
+        if task_id not in self.taskId_to_progressId:
+            raise HTTPException(status_code=404, detail="Task not found")
+        whisper_url = self.app_config.whisper_url
+        url = f"{whisper_url}/audio/transcriptions/task/status?task_id={task_id}"
+        progress_url = f"{whisper_url}/progress/{self.taskId_to_progressId[task_id]}"
 
-    # Get the status of the transcription task
-    async with (
-        aiohttp.ClientSession() as session,
-        session.get(url) as response,
-        session.get(progress_url) as progress_response,
-    ):
-        if response.status == 404:
+        # Get the status of the transcription task
+        response = await self.client.get(url)
+        if response.status_code == 404:
             return TaskStatus(task_id=task_id, status=TaskStatusEnum.FAILED)
         response.raise_for_status()
-        if progress_response.status == 404:
+
+        progress_response = await self.client.get(progress_url)
+        if progress_response.status_code == 404:
             raise HTTPException(status_code=404, detail="Progress not found")
         progress_response.raise_for_status()
 
-        progress = ProgressResponse(**await progress_response.json())
-        return TaskStatus(**await response.json(), progress=progress.progress)
+        progress = ProgressResponse(**progress_response.json())
+        return TaskStatus(**response.json(), progress=progress.progress)
 
+    @future_safe
+    async def transcribe_get_task_result(self, task_id: str) -> TranscriptionResponse:
+        """
+        Retrieves the result of a completed transcription task.
 
-async def transcribe_get_task_result(task_id: str) -> TranscriptionResponse:
-    """
-    Retrieves the result of a completed transcription task.
+        Args:
+            task_id: The ID of the completed task
 
-    Args:
-        task_id: The ID of the completed task
+        Returns:
+            TranscriptionVerboseJsonResponse: The parsed transcription result
+        """
+        whisper_url = self.app_config.whisper_url
+        url = f"{whisper_url}/audio/transcriptions/task/get?task_id={task_id}"
 
-    Returns:
-        TranscriptionVerboseJsonResponse: The parsed transcription result
-    """
-    url = f"{settings.whisper_api}/audio/transcriptions/task/get?task_id={task_id}"
-
-    # Get the transcription result
-    async with (
-        aiohttp.ClientSession() as session,
-        session.get(url) as response,
-    ):
+        # Get the transcription result
+        response = await self.client.get(url)
         response.raise_for_status()
-        result_data = await response.json()
+        result_data = response.json()
 
-        taskId_to_progressId.pop(task_id, None)
+        if task_id in self.taskId_to_progressId:
+            del self.taskId_to_progressId[task_id]
 
         transcription = TranscriptionResponse(**result_data)
         for segment in transcription.segments:
@@ -83,129 +95,121 @@ async def transcribe_get_task_result(task_id: str) -> TranscriptionResponse:
 
         return TranscriptionResponse(**result_data)
 
+    @future_safe
+    async def transcribe_retry_task(self, task_id: str) -> TaskStatus:
+        """
+        Retries a failed transcription task.
 
-async def transcribe_retry_task(task_id: str) -> TaskStatus:
-    """
-    Retries a failed transcription task.
+        Args:
+            task_id: The ID of the task to retry
 
-    Args:
-        task_id: The ID of the task to retry
+        Returns:
+            TaskStatus: The updated status of the task
+        """
+        whisper_url = self.app_config.whisper_url
+        url = f"{whisper_url}/audio/transcriptions/task/retry?task_id={task_id}"
 
-    Returns:
-        TaskStatus: The updated status of the task
-    """
-    url = f"{settings.whisper_api}/audio/transcriptions/task/retry?task_id={task_id}"
-
-    async with (
-        aiohttp.ClientSession() as session,
-        session.post(url) as response,
-    ):
+        response = await self.client.post(url)
         response.raise_for_status()
-        return TaskStatus(**await response.json())
+        return TaskStatus(**response.json())
 
+    @future_safe
+    async def transcribe_cancel_task(self, task_id: str) -> TaskStatus:
+        """
+        Cancels an ongoing transcription task.
 
-async def transcribe_cancel_task(task_id: str) -> TaskStatus:
-    """
-    Cancels an ongoing transcription task.
+        Args:
+            task_id: The ID of the task to cancel
 
-    Args:
-        task_id: The ID of the task to cancel
+        Returns:
+            TaskStatus: The updated status of the task
+        """
+        whisper_url = self.app_config.whisper_url
+        url = f"{whisper_url}/audio/transcriptions/task/cancel?task_id={task_id}"
 
-    Returns:
-        TaskStatus: The updated status of the task
-    """
-    url = f"{settings.whisper_api}/audio/transcriptions/task/cancel?task_id={task_id}"
-
-    async with (
-        aiohttp.ClientSession() as session,
-        session.put(url) as response,
-    ):
+        response = await self.client.put(url)
         response.raise_for_status()
-        return TaskStatus(**await response.json())
+        return TaskStatus(**response.json())
 
+    @future_safe
+    async def transcribe_submit_task(
+        self,
+        audio_data: bytes,
+        model: str = "large-v2",
+        language: str | None = None,
+        prompt: str | None = None,
+        response_format: ResponseFormat = ResponseFormat.JSON_DIARIZED,
+        temperature: float | list[float] | None = None,
+        vad_filter: bool = True,
+        diarization: bool = True,
+        diarization_speaker_count: int | None = None,
+        timestamp_granularities: str = "segment",
+        **kwargs: Any,
+    ) -> TaskStatus:
+        """
+        Submits a new transcription task with additional parameters.
 
-async def transcribe_submit_task(
-    audio_data: bytes,
-    file_format: str,
-    model: str = "large-v2",
-    language: str | None = None,
-    prompt: str | None = None,
-    response_format: ResponseFormat = ResponseFormat.JSON_DIARIZED,
-    temperature: float | list[float] | None = None,
-    vad_filter: bool = True,
-    diarization: bool = True,
-    diarization_speaker_count: int | None = None,
-    timestamp_granularities: str = "segment",
-    **kwargs: Any,
-) -> TaskStatus:
-    """
-    Submits a new transcription task with additional parameters.
+        Args:
+            audio_data: The binary audio data to transcribe
+            model: The Whisper model to use
+            language: The language code for transcription
+            prompt: Optional prompt for the model
+            response_format: Format of the output (enum: ResponseFormat)
+            temperature: Temperature value(s) for sampling
+            vad_filter: Whether to use voice activity detection
+            diarization: Whether to separate speakers
+            diarization_speaker_count: Number of speakers to separate
+            **kwargs: Additional parameters to pass to the API
 
-    Args:
-        audio_data: The binary audio data to transcribe
-        file_format: The format of the audio data
-        model: The Whisper model to use
-        language: The language code for transcription
-        prompt: Optional prompt for the model
-        response_format: Format of the output (enum: ResponseFormat)
-        temperature: Temperature value(s) for sampling
-        vad_filter: Whether to use voice activity detection
-        diarization: Whether to separate speakers
-        diarization_speaker_count: Number of speakers to separate
-        **kwargs: Additional parameters to pass to the API
+        Returns:
+            TaskStatus: The status of the created task
+        """
+        whisper_url = self.app_config.whisper_url
+        url = f"{whisper_url}/audio/transcriptions/task/submit"
 
-    Returns:
-        TaskStatus: The status of the created task
-    """
-    url = f"{settings.whisper_api}/audio/transcriptions/task/submit"
+        if temperature is None:
+            temperature = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
-    if temperature is None:
-        temperature = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        # Convert to MP3 if not already in MP3 format
+        if not is_mp3_format(audio_data):
+            try:
+                # Convert with balanced quality settings
+                # convert_to_mp3 now returns IOResult, we unwrap it to get the value or raise exception
+                audio_data = convert_to_mp3(audio_data).unwrap()._inner_value
+            except AudioConversionError as e:
+                raise HTTPException(status_code=400, detail=f"Audio conversion failed: {e}") from e
 
-    # Convert to MP3 if not already in MP3 format
-    if not is_mp3_format(audio_data):
-        try:
-            # Convert with balanced quality settings
-            audio_data = convert_to_mp3(audio_data)
-        except AudioConversionError as e:
-            raise HTTPException(status_code=400, detail=f"Audio conversion failed: {e}") from e
+        # Prepare form data
+        data: dict[str, Any] = {"model": model}
+        files = {"file": ("audio.mp3", audio_data, "audio/mpeg")}
 
-    # Prepare form data
-    form_data = aiohttp.FormData()
-    form_data.add_field("file", audio_data, filename="audio.mp3")
-    form_data.add_field("model", model)
+        progress_id = uuid.uuid4().hex
+        data["progress_id"] = progress_id
+        if language:
+            data["language"] = language
+        if prompt:
+            data["prompt"] = prompt
+        data["response_format"] = response_format.value
+        data["timestamp_granularities[]"] = timestamp_granularities
+        data["temperature"] = str(temperature)
 
-    progress_id = uuid.uuid4().hex
-    form_data.add_field("progress_id", progress_id)
-    if language:
-        form_data.add_field("language", language)
-    if prompt:
-        form_data.add_field("prompt", prompt)
-    form_data.add_field("response_format", response_format.value)  # Use the enum value
-    form_data.add_field("timestamp_granularities[]", timestamp_granularities)
+        if diarization_speaker_count:
+            data["diarization_speaker_count"] = str(diarization_speaker_count)
 
-    form_data.add_field("temperature", str(temperature))
+        # Add boolean parameters
+        data["vad_filter"] = str(vad_filter)
+        data["diarization"] = str(diarization)
 
-    if diarization_speaker_count:
-        form_data.add_field("diarization_speaker_count", str(diarization_speaker_count))
+        # Add any additional parameters
+        for key, value in kwargs.items():
+            if isinstance(value, list | dict):
+                data[key] = json.dumps(value)
+            else:
+                data[key] = str(value)
 
-    # Add boolean parameters
-    form_data.add_field("vad_filter", str(vad_filter))
-    form_data.add_field("diarization", str(diarization))
-
-    # Add any additional parameters
-    for key, value in kwargs.items():
-        if isinstance(value, list | dict):
-            form_data.add_field(key, json.dumps(value))
-        else:
-            form_data.add_field(key, str(value))
-
-    # Send the request
-    async with (
-        aiohttp.ClientSession() as session,
-        session.post(url, data=form_data) as response,
-    ):
+        # Send the request
+        response = await self.client.post(url, data=data, files=files)
         response.raise_for_status()
-        status = TaskStatus(**await response.json())
-        taskId_to_progressId[status.task_id] = progress_id
+        status = TaskStatus(**response.json())
+        self.taskId_to_progressId[status.task_id] = progress_id
         return status
