@@ -25,9 +25,7 @@ def create_router(
     router = APIRouter()
 
     @router.post("/summarize")
-    async def summarize(
-        request: SummaryRequest, x_client_id: Annotated[str | None, Header()] = None
-    ) -> Summary:  # ty:ignore[invalid-return-type]
+    async def summarize(request: SummaryRequest, x_client_id: Annotated[str | None, Header()] = None) -> Summary:
         """
         Endpoint to summarize a text.
         """

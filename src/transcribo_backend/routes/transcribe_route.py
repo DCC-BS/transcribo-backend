@@ -30,7 +30,7 @@ def create_router(  # noqa: C901
     router = APIRouter()
 
     @router.get("/task/{task_id}/status")
-    async def get_task_status(task_id: str) -> TaskStatus:  # ty:ignore[invalid-return-type]
+    async def get_task_status(task_id: str) -> TaskStatus:
         """
         Endpoint to get the status of a task by task_id.
         """
@@ -46,7 +46,7 @@ def create_router(  # noqa: C901
         ) from error
 
     @router.get("/task/{task_id}/result")
-    async def get_task_result(task_id: str) -> TranscriptionResponse:  # ty:ignore[invalid-return-type]
+    async def get_task_result(task_id: str) -> TranscriptionResponse:
         """
         Endpoint to get the status of a task by task_id.
         """
