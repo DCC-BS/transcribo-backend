@@ -5,7 +5,7 @@ description = "The backend of the transcribo app"
 authors = [{name = "Data Competence Center Basel-Stadt", email = "dcc@bs.ch" },{ name = "Tobias Bollinger", email = "tobias.bollinger@bs.ch" }, { name = "Yanick Schraner", email = "yanick.schraner@bs.ch" }]
 readme = "README.md"
 keywords = ['python']
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.14,<3.15"
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
 classifiers = [
