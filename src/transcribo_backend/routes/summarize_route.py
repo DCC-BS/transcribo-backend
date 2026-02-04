@@ -1,12 +1,12 @@
 from http import HTTPStatus
 from typing import Annotated
 
-from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, ApiErrorException, api_error_exception
+from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, api_error_exception
 from dcc_backend_common.logger import get_logger
 from dcc_backend_common.usage_tracking import UsageTrackingService
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Header
-from returns.result import Failure, Success
+from returns.io import IOSuccess
 
 from transcribo_backend.container import Container
 from transcribo_backend.models.summary import Summary, SummaryRequest
@@ -55,15 +55,15 @@ def create_router(
 
         result = await summarization_service.summarize(request.transcript)
 
-        match result:
-            case Success(summary):
-                return summary
-            case Failure(error):
-                logger.exception("Failed to summarize transcript", exc_info=error)
-                raise ApiErrorException(
-                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                    error_code=ApiErrorCodes.INTERNAL_ERROR,
-                    message="Failed to generate summary",
-                ) from error
+        if isinstance(result, IOSuccess):
+            return result.unwrap()._inner_value
+
+        error = result.failure()
+        logger.exception("Failed to summarize transcript", exc_info=error)
+        raise api_error_exception(
+            errorId=ApiErrorCodes.UNEXPECTED_ERROR,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            debugMessage="Failed to generate summary",
+        ) from error
 
     return router
