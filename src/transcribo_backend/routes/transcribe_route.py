@@ -6,7 +6,7 @@ from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, api_error_e
 from dcc_backend_common.logger import get_logger
 from dcc_backend_common.usage_tracking import UsageTrackingService
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Form, Header, HTTPException, UploadFile
 from returns.io import IOSuccess
 
 from transcribo_backend.container import Container
@@ -88,8 +88,8 @@ def create_router(  # noqa: C901
     @router.post("/transcribe")
     async def submit_transcribe(
         audio_file: UploadFile,
-        num_speakers: int | None = None,
-        language: str | None = None,
+        num_speakers: Annotated[int | None, Form()] = None,
+        language: Annotated[str | None, Form()] = None,
         x_client_id: Annotated[str | None, Header()] = None,
     ) -> TaskStatus:
         """
