@@ -1,4 +1,14 @@
-from pydantic import BaseModel, Field
+from enum import Enum
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class SummaryType(Enum):
+    """Enum for summary types."""
+
+    VERHANDLUNGSPROTOKOLL = "verhandlungsprotokoll"  # Negotiation/Process Protocol
+    KURZPROTOKOLL = "kurzprotokoll"  # Short Protocol
+    ERGEBNISPROTOKOLL = "ergebnisprotokoll"  # Result/Decision Protocol
 
 
 class Summary(BaseModel):
@@ -6,14 +16,13 @@ class Summary(BaseModel):
 
     summary: str = Field(..., description="Generated summary of the transcript.")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class SummaryRequest(BaseModel):
     """Request model for summarization endpoint."""
 
     transcript: str = Field(..., min_length=1, max_length=32_000 * 4, description="Transcript to summarize.")
+    summary_type: SummaryType | None = Field(None, description="Type of summary to generate.")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")

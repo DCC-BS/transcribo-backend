@@ -18,11 +18,10 @@ classifiers = [
 ]
 dependencies = [
     "audioop-lts; python_version >= '3.13'",
-    "cachetools>=6.2.4",
-    "dcc-backend-common>=0.1.4",
+    "cachetools>=7.0.1",
+    "dcc-backend-common[pydantic_ai]>=0.1.4",
     "dependency-injector>=4.48.3",
-    "fastapi[standard]>=0.128.0",
-    "pydantic-ai>=1.43.0",
+    "fastapi[standard]>=0.133.1",
     "returns>=0.26.0",
 ]
 
