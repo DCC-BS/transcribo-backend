@@ -129,7 +129,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.77.1"
+version = "0.79.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2653,7 +2653,7 @@ email = [
 
 [[package]]
 name = "pydantic-ai"
-version = "1.52.0"
+version = "1.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic-ai-slim", extra = ["ag-ui", "anthropic", "bedrock", "cli", "cohere", "evals", "fastmcp", "google", "groq", "huggingface", "logfire", "mcp", "mistral", "openai", "retries", "temporal", "ui", "vertexai", "xai"] },
@@ -2665,7 +2665,7 @@ wheels = [
 
 [[package]]
 name = "pydantic-ai-slim"
-version = "1.52.0"
+version = "1.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "genai-prices" },
@@ -2791,7 +2791,7 @@ wheels = [
 
 [[package]]
 name = "pydantic-evals"
-version = "1.52.0"
+version = "1.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2821,7 +2821,7 @@ wheels = [
 
 [[package]]
 name = "pydantic-graph"
-version = "1.52.0"
+version = "1.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
