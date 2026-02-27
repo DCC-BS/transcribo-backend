@@ -72,13 +72,12 @@ class SummarizeAgent(BaseAgent[SummaryType, str]):
         def get_instructions(ctx: RunContext[SummaryType]) -> str:
             summary_type = ctx.deps
 
-            if summary_type == SummaryType.VERHANDLUNGSPROTOKOLL:
-                return VERHANDLUNGSPROTOKOLL_INSTRUCTIONS
-            elif summary_type == SummaryType.KURZPROTOKOLL:
-                return KURZPROTOKOLL_INSTRUCTIONS
-            elif summary_type == SummaryType.ERGEBNISPROTOKOLL:
-                return ERGEBNISPROTOKOLL_INSTRUCTIONS
-            else:
-                return DEFAULT_INSTRUCTIONS
+            instructions_map = {
+                SummaryType.VERHANDLUNGSPROTOKOLL: VERHANDLUNGSPROTOKOLL_INSTRUCTIONS,
+                SummaryType.KURZPROTOKOLL: KURZPROTOKOLL_INSTRUCTIONS,
+                SummaryType.ERGEBNISPROTOKOLL: ERGEBNISPROTOKOLL_INSTRUCTIONS,
+            }
+
+            return instructions_map.get(summary_type, DEFAULT_INSTRUCTIONS)
 
         return agent
