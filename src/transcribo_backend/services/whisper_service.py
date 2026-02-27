@@ -26,7 +26,7 @@ class WhisperService:
         self.taskId_to_progressId: TTLCache[str, str] = TTLCache(maxsize=1024, ttl=one_day)
         timeout = httpx.Timeout(10.0)
         limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
-        api_key_header = {"Authorization": f"Bearer {self.app_config.api_key}"}
+        api_key_header = {"Authorization": f"Bearer {self.app_config.llm_api_key}"}
         self.client = httpx.AsyncClient(timeout=timeout, limits=limits, headers=api_key_header)
 
     async def aclose(self) -> None:
