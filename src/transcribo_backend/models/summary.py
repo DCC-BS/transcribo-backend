@@ -2,6 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from transcribo_backend.models.language import Language, LanguageOrAuto
+
 
 class SummaryType(Enum):
     """Enum for summary types."""
@@ -24,5 +26,17 @@ class SummaryRequest(BaseModel):
 
     transcript: str = Field(..., min_length=1, max_length=32_000 * 4, description="Transcript to summarize.")
     summary_type: SummaryType | None = Field(None, description="Type of summary to generate.")
+    language: Language | None = Field(
+        None, description="Output language for summary. None = auto-detect from transcript."
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class SummaryDeps(BaseModel):
+    """Dependencies passed to the summarize agent."""
+
+    summary_type: SummaryType
+    language: LanguageOrAuto = None
 
     model_config = ConfigDict(extra="forbid")
