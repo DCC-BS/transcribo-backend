@@ -4,11 +4,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.25 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
+ENV UV_HTTP_TIMEOUT=120
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev build-base git protoc protobuf-dev rust cargo
 
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
