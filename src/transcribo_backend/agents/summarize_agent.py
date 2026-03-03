@@ -5,7 +5,8 @@ from dcc_backend_common.llm_agent import BaseAgent
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 
-from transcribo_backend.models.summary import SummaryType
+from transcribo_backend.models.language import get_language_name
+from transcribo_backend.models.summary import SummaryDeps, SummaryType
 
 # Instruction prompts for different summary types
 VERHANDLUNGSPROTOKOLL_INSTRUCTIONS = """
@@ -60,17 +61,19 @@ If you are not sure about the language, use German.
 """
 
 
-class SummarizeAgent(BaseAgent[SummaryType, str]):
+class SummarizeAgent(BaseAgent[SummaryDeps, str]):
     def __init__(self, config: LlmConfig):
-        super().__init__(config, deps_type=SummaryType, output_type=str, enable_thinking=False)
+        super().__init__(config, deps_type=SummaryDeps, output_type=str, enable_thinking=False)
 
     @override
-    def create_agent(self, model: Model) -> Agent[SummaryType, str]:
+    def create_agent(self, model: Model) -> Agent[SummaryDeps, str]:
         agent = Agent(model=model, deps_type=self.deps_type, output_type=self.output_type)
 
         @agent.instructions
-        def get_instructions(ctx: RunContext[SummaryType]) -> str:
-            summary_type = ctx.deps
+        def get_instructions(ctx: RunContext[SummaryDeps]) -> str:
+            deps = ctx.deps
+            summary_type = deps.summary_type
+            language = deps.language
 
             instructions_map = {
                 SummaryType.VERHANDLUNGSPROTOKOLL: VERHANDLUNGSPROTOKOLL_INSTRUCTIONS,
@@ -78,6 +81,13 @@ class SummarizeAgent(BaseAgent[SummaryType, str]):
                 SummaryType.ERGEBNISPROTOKOLL: ERGEBNISPROTOKOLL_INSTRUCTIONS,
             }
 
-            return instructions_map.get(summary_type, DEFAULT_INSTRUCTIONS)
+            base_instructions = instructions_map.get(summary_type, DEFAULT_INSTRUCTIONS)
+
+            if language is not None:
+                language_name = get_language_name(language)
+                language_instruction = f"\n\nVerfasse das Protokoll auf **{language_name}**."
+                return base_instructions + language_instruction
+
+            return base_instructions
 
         return agent
