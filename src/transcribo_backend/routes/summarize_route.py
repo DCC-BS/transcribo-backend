@@ -51,9 +51,7 @@ def create_router(
             transcript_length=len(request.transcript),
         )
 
-        result = await summarization_service.summarize(
-            request.transcript, request.summary_type, request.language
-        )
+        result = await summarization_service.summarize(request.transcript, request.summary_type, request.language)
 
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
