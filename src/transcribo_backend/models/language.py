@@ -14,7 +14,7 @@ class Language(Enum):
     """
     Enumeration of supported languages for summary generation.
 
-    Each language is represented by its ISO 639-1 language code.
+    Each language is represented by its IETF language tag.
     """
 
     AF = "af"  # Afrikaans
