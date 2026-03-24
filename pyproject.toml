@@ -19,7 +19,8 @@ classifiers = [
 dependencies = [
     "audioop-lts; python_version >= '3.13'",
     "cachetools>=7.0.1",
-    "dcc-backend-common[pydantic_ai]>=0.1.4",
+    #"dcc-backend-common[pydantic_ai]>=0.1.5",
+    "dcc-backend-common==0.1.6",
     "dependency-injector>=4.48.3",
     "fastapi[standard]>=0.133.1",
     "returns>=0.26.0",
@@ -42,7 +43,7 @@ dev = [
     "mkdocs>=1.4.2",
     "mkdocs-material>=8.5.10",
     "mkdocstrings[python]>=0.26.1",
-    "ty>=0.0.12",
+    "ty>=0.0.24",
 ]
 
 [build-system]
