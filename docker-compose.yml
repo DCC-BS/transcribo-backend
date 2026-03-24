@@ -1,11 +1,13 @@
 services:
   llm:
     platform: linux/amd64
-    image: vllm/vllm-openai:v0.17.0
+    image: vllm/vllm-openai:v0.17.1-cu130
     container_name: llm
     ports:
       - "9000:8000"
     env_file: ".env"
+    environment:
+      - LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
     runtime: nvidia
     deploy:
       resources:
@@ -29,7 +31,6 @@ services:
       --tensor-parallel-size 1
       --reasoning-parser qwen3
       --uvicorn-log-level warning
-      --disable-log-requests
 
   faster_whisper:
     image: quay.io/ktbs/fd-itbs/faster-whisper:v1.4.1
