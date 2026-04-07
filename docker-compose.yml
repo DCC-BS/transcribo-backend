@@ -5,6 +5,8 @@ services:
     container_name: llm
     ports:
       - "9000:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
     env_file: ".env"
     environment:
       - LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
@@ -18,7 +20,7 @@ services:
               capabilities: [gpu]
     ipc: host
     volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ${HUGGING_FACE_CACHE_DIR}:/root/.cache/huggingface
     command: >
       Qwen/Qwen3-32B-AWQ
       --port 8000
