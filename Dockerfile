@@ -2,6 +2,7 @@
 FROM python:3.13-alpine AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.9.25 /uv /uvx /bin/
 
+ENV APP_MODE=build
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV UV_HTTP_TIMEOUT=120
@@ -46,9 +47,8 @@ RUN addgroup -S app && adduser -S app -G app
 
 # Copy the environment, but not the source code
 COPY --from=builder --chown=app:app /app /app
-
-RUN chmod +x /app/run.sh
-RUN chown app:app /app/run.sh
+COPY --chown=app:app --chmod=755 entrypoint.sh /app/entrypoint.sh
+COPY --from=ghcr.io/dmno-dev/varlock:latest --chown=app:app /usr/local/bin/varlock /usr/local/bin/varlock
 
 # Enable virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
@@ -57,4 +57,4 @@ USER app
 
 ENV APP_MODE=prod
 
-ENTRYPOINT ["/app/run.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
