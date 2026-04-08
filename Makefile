@@ -12,7 +12,7 @@ check: ## Run code quality tools.
 	@uv run pre-commit run -a
 	@echo "🚀 Static type checking: Running ty"
 	@uv run ty check
-	@varlock scan
+	@./scripts/run-varlock.sh scan
 
 .PHONY: test
 test: ## Test the code with pytest

@@ -33,6 +33,7 @@ FROM python:3.13-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV APP_MODE=build
 
 WORKDIR /app
 
@@ -54,6 +55,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 USER app
 
-ENV ENVIRONMENT=production
+ENV APP_MODE=prod
 
 ENTRYPOINT ["/app/run.sh"]
