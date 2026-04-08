@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+env:
+  APP_MODE=ci
+
 jobs:
   backend-ci:
     uses: DCC-BS/ci-workflows/.github/workflows/python-backend-ci.yml@b522a713e5f9efc19b715d0d4938f37531db7f0d # v8.1
