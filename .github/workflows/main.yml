@@ -9,7 +9,7 @@ on:
       - main
 
 env:
-  APP_MODE=ci
+  APP_MODE: "ci"
 
 jobs:
   backend-ci:
