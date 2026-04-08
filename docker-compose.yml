@@ -7,9 +7,8 @@ services:
       - "9000:8000"
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
-    env_file: ".env"
-    environment:
       - LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
+    env_file: ".env"
     runtime: nvidia
     deploy:
       resources:

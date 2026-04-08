@@ -1,4 +1,3 @@
 #!/bin/bash
 
-FORCE_COLOR=1
-varlock "$@"
+FORCE_COLOR=1 varlock "$@"
