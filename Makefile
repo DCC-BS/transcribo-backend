@@ -12,31 +12,36 @@ check: ## Run code quality tools.
 	@uv run pre-commit run -a
 	@echo "🚀 Static type checking: Running ty"
 	@uv run ty check
+	@./scripts/run-varlock.sh scan
 
 .PHONY: test
 test: ## Test the code with pytest
 	@echo "🚀 Testing code: Running pytest"
 	@uv run python -m pytest --doctest-modules
 
-.PHONY: docker up
-docker up: ## Build and run the Docker container
+.PHONY: docker-up
+docker-up: ## Build and run the Docker container
 	@echo "🐳 Running docker compose"
-	@docker compose up -d
+	@./scripts/run-varlock.sh run -- docker compose up -d
 
-.PHONY: docker down
-docker down: ## Stop and remove the Docker container
+.PHONY: docker-down
+docker-down: ## Stop and remove the Docker container
 	@echo "🐳 Stopping docker compose"
-	@docker compose down
+	@./scripts/run-varlock.sh run -- docker compose down
+
+.PHONY: docker-logs
+docker-logs:
+	@./scripts/run-varlock.sh run -- docker compose logs
 
 .PHONY: run
 run: ## Run the application
 	@echo "🚀 Running the application"
-	@uv run fastapi run ./src/transcribo_backend/app.py --port 8000
+	@./scripts/run-varlock.sh run -- uv run fastapi run ./src/transcribo_backend/app.py --port 8000
 
 .PHONY: dev
 dev: ## Run the application in development mode
 	@echo "🚀 Running the application in development mode"
-	@uv run --env-file .env fastapi dev ./src/transcribo_backend/app.py --port 8000
+	@./scripts/run-varlock.sh run -- uv run --env-file .env fastapi dev ./src/transcribo_backend/app.py --port 8000
 
 .PHONY: build
 build: clean-build ## Build wheel file

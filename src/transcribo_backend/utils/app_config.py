@@ -10,8 +10,8 @@ class AppConfig(LlmConfig):
 
     @classmethod
     def from_env(cls) -> "AppConfig":
-        llm_base_url: str = get_env_or_throw("LLM_BASE_URL")
-        api_key: str = get_env_or_throw("API_KEY")
+        llm_base_url: str = get_env_or_throw("LLM_URL")
+        api_key: str = get_env_or_throw("LLM_API_KEY")
         llm_model: str = get_env_or_throw("LLM_MODEL")
         client_url: str = get_env_or_throw("CLIENT_URL")
         hmac_secret: str = get_env_or_throw("HMAC_SECRET")
