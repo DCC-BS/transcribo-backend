@@ -11,11 +11,11 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-03-31T08:32:01.646228275Z"
+exclude-newer = "2026-04-07T04:27:23.013598468Z"
 exclude-newer-span = "P1W"
 
 [options.exclude-newer-package]
-dcc-backend-common = { timestamp = "2026-04-06T08:32:01.646241235Z", span = "P1D" }
+dcc-backend-common = { timestamp = "2026-04-13T04:27:23.013616308Z", span = "P1D" }
 
 [[package]]
 name = "ag-ui-protocol"
