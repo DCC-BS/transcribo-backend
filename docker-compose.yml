@@ -34,10 +34,12 @@ services:
       --uvicorn-log-level warning
 
   faster_whisper:
-    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.4.1
+    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.4.2
     ports:
       - "50001:50001"
     env_file: ".env"
+    environment:
+      - LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
     deploy:
       resources:
         reservations:
