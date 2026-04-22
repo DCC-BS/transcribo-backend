@@ -11,159 +11,120 @@ from enum import Enum
 
 
 class Language(Enum):
-    """
-    Enumeration of supported languages for summary generation.
+    display_name: str
 
-    Each language is represented by its IETF language tag.
-    """
+    def __new__(cls, code: str, display_name: str) -> Language:
+        obj = object.__new__(cls)
+        obj._value_ = code
+        obj.display_name = display_name
+        return obj
 
-    AF = "af"  # Afrikaans
-    AR = "ar"  # Arabic
-    BG = "bg"  # Bulgarian
-    BN = "bn"  # Bengali
-    CA = "ca"  # Catalan
-    CS = "cs"  # Czech
-    CY = "cy"  # Welsh
-    DA = "da"  # Danish
-    DE = "de"  # German
-    EL = "el"  # Greek
-    EN = "en"  # English
-    EN_GB = "en-gb"  # English (United Kingdom)
-    EN_US = "en-us"  # English (United States)
-    ES = "es"  # Spanish
-    ET = "et"  # Estonian
-    FA = "fa"  # Persian
-    FI = "fi"  # Finnish
-    FR = "fr"  # French
-    GU = "gu"  # Gujarati
-    HE = "he"  # Hebrew
-    HI = "hi"  # Hindi
-    HR = "hr"  # Croatian
-    HU = "hu"  # Hungarian
-    ID = "id"  # Indonesian
-    IT = "it"  # Italian
-    JA = "ja"  # Japanese
-    KN = "kn"  # Kannada
-    KO = "ko"  # Korean
-    LT = "lt"  # Lithuanian
-    LV = "lv"  # Latvian
-    MK = "mk"  # Macedonian
-    ML = "ml"  # Malayalam
-    MR = "mr"  # Marathi
-    NE = "ne"  # Nepali
-    NL = "nl"  # Dutch
-    NO = "no"  # Norwegian
-    PA = "pa"  # Punjabi
-    PL = "pl"  # Polish
-    PT = "pt"  # Portuguese
-    RO = "ro"  # Romanian
-    RU = "ru"  # Russian
-    SK = "sk"  # Slovak
-    SL = "sl"  # Slovenian
-    SO = "so"  # Somali
-    SQ = "sq"  # Albanian
-    SV = "sv"  # Swedish
-    SW = "sw"  # Swahili
-    TA = "ta"  # Tamil
-    TE = "te"  # Telugu
-    TH = "th"  # Thai
-    TL = "tl"  # Filipino
-    TR = "tr"  # Turkish
-    UK = "uk"  # Ukrainian
-    UR = "ur"  # Urdu
-    VI = "vi"  # Vietnamese
-    ZH_CN = "zh-cn"  # Chinese (Simplified)
-    ZH_TW = "zh-tw"  # Chinese (Traditional)
+    AF = ("af", "Afrikaans")
+    AM = ("am", "Amharic")
+    AR = ("ar", "Arabic")
+    AS = ("as", "Assamese")
+    AZ = ("az", "Azerbaijani")
+    BA = ("ba", "Bashkir")
+    BE = ("be", "Belarusian")
+    BG = ("bg", "Bulgarian")
+    BN = ("bn", "Bengali")
+    BO = ("bo", "Tibetan")
+    BR = ("br", "Breton")
+    BS = ("bs", "Bosnian")
+    CA = ("ca", "Catalan")
+    CS = ("cs", "Czech")
+    CY = ("cy", "Welsh")
+    DA = ("da", "Danish")
+    DE = ("de", "German")
+    EL = ("el", "Greek")
+    EN = ("en", "English")
+    ES = ("es", "Spanish")
+    ET = ("et", "Estonian")
+    EU = ("eu", "Basque")
+    FA = ("fa", "Persian")
+    FI = ("fi", "Finnish")
+    FO = ("fo", "Faroese")
+    FR = ("fr", "French")
+    GL = ("gl", "Galician")
+    GU = ("gu", "Gujarati")
+    HA = ("ha", "Hausa")
+    HAW = ("haw", "Hawaiian")
+    HE = ("he", "Hebrew")
+    HI = ("hi", "Hindi")
+    HR = ("hr", "Croatian")
+    HT = ("ht", "Haitian Creole")
+    HU = ("hu", "Hungarian")
+    HY = ("hy", "Armenian")
+    ID = ("id", "Indonesian")
+    IS = ("is", "Icelandic")
+    IT = ("it", "Italian")
+    JA = ("ja", "Japanese")
+    JW = ("jw", "Javanese")
+    KA = ("ka", "Georgian")
+    KK = ("kk", "Kazakh")
+    KM = ("km", "Khmer")
+    KN = ("kn", "Kannada")
+    KO = ("ko", "Korean")
+    LA = ("la", "Latin")
+    LB = ("lb", "Luxembourgish")
+    LN = ("ln", "Lingala")
+    LO = ("lo", "Lao")
+    LT = ("lt", "Lithuanian")
+    LV = ("lv", "Latvian")
+    MG = ("mg", "Malagasy")
+    MI = ("mi", "Maori")
+    MK = ("mk", "Macedonian")
+    ML = ("ml", "Malayalam")
+    MN = ("mn", "Mongolian")
+    MR = ("mr", "Marathi")
+    MS = ("ms", "Malay")
+    MT = ("mt", "Maltese")
+    MY = ("my", "Burmese")
+    NE = ("ne", "Nepali")
+    NL = ("nl", "Dutch")
+    NN = ("nn", "Norwegian Nynorsk")
+    NO = ("no", "Norwegian")
+    OC = ("oc", "Occitan")
+    PA = ("pa", "Punjabi")
+    PL = ("pl", "Polish")
+    PS = ("ps", "Pashto")
+    PT = ("pt", "Portuguese")
+    RO = ("ro", "Romanian")
+    RU = ("ru", "Russian")
+    SA = ("sa", "Sanskrit")
+    SD = ("sd", "Sindhi")
+    SI = ("si", "Sinhala")
+    SK = ("sk", "Slovak")
+    SL = ("sl", "Slovenian")
+    SN = ("sn", "Shona")
+    SO = ("so", "Somali")
+    SQ = ("sq", "Albanian")
+    SR = ("sr", "Serbian")
+    SU = ("su", "Sundanese")
+    SV = ("sv", "Swedish")
+    SW = ("sw", "Swahili")
+    TA = ("ta", "Tamil")
+    TE = ("te", "Telugu")
+    TG = ("tg", "Tajik")
+    TH = ("th", "Thai")
+    TK = ("tk", "Turkmen")
+    TL = ("tl", "Filipino")
+    TR = ("tr", "Turkish")
+    TT = ("tt", "Tatar")
+    UK = ("uk", "Ukrainian")
+    UR = ("ur", "Urdu")
+    UZ = ("uz", "Uzbek")
+    VI = ("vi", "Vietnamese")
+    YI = ("yi", "Yiddish")
+    YO = ("yo", "Yoruba")
+    YUE = ("yue", "Cantonese")
+    ZH = ("zh", "Chinese")
 
-
-_LANGUAGE_NAMES = {
-    Language.AF: "Afrikaans",
-    Language.AR: "Arabic",
-    Language.BG: "Bulgarian",
-    Language.BN: "Bengali",
-    Language.CA: "Catalan",
-    Language.CS: "Czech",
-    Language.CY: "Welsh",
-    Language.DA: "Danish",
-    Language.DE: "German",
-    Language.EL: "Greek",
-    Language.EN: "English",
-    Language.EN_GB: "English (United Kingdom)",
-    Language.EN_US: "English (United States)",
-    Language.ES: "Spanish",
-    Language.ET: "Estonian",
-    Language.FA: "Persian",
-    Language.FI: "Finnish",
-    Language.FR: "French",
-    Language.GU: "Gujarati",
-    Language.HE: "Hebrew",
-    Language.HI: "Hindi",
-    Language.HR: "Croatian",
-    Language.HU: "Hungarian",
-    Language.ID: "Indonesian",
-    Language.IT: "Italian",
-    Language.JA: "Japanese",
-    Language.KN: "Kannada",
-    Language.KO: "Korean",
-    Language.LT: "Lithuanian",
-    Language.LV: "Latvian",
-    Language.MK: "Macedonian",
-    Language.ML: "Malayalam",
-    Language.MR: "Marathi",
-    Language.NE: "Nepali",
-    Language.NL: "Dutch",
-    Language.NO: "Norwegian",
-    Language.PA: "Punjabi",
-    Language.PL: "Polish",
-    Language.PT: "Portuguese",
-    Language.RO: "Romanian",
-    Language.RU: "Russian",
-    Language.SK: "Slovak",
-    Language.SL: "Slovenian",
-    Language.SO: "Somali",
-    Language.SQ: "Albanian",
-    Language.SV: "Swedish",
-    Language.SW: "Swahili",
-    Language.TA: "Tamil",
-    Language.TE: "Telugu",
-    Language.TH: "Thai",
-    Language.TL: "Filipino",
-    Language.TR: "Turkish",
-    Language.UK: "Ukrainian",
-    Language.UR: "Urdu",
-    Language.VI: "Vietnamese",
-    Language.ZH_CN: "Chinese (Simplified)",
-    Language.ZH_TW: "Chinese (Traditional)",
-}
 
 LanguageOrAuto = Language | None
 
 
 def get_language_name(language: LanguageOrAuto) -> str:
-    """
-    Get the human-readable name for a given language code.
-
-    Args:
-        language: A Language enum member or None for auto-detect
-
-    Returns:
-        The full name of the language (e.g., "English", "German")
-        or "auto-detected" if language is None
-
-    Raises:
-        ValueError: If the language code is not recognized
-
-    Examples:
-        >>> get_language_name(Language.EN)
-        'English'
-        >>> get_language_name(None)
-        'auto-detected'
-    """
     if language is None:
         return "auto-detected"
-
-    name = _LANGUAGE_NAMES.get(language)
-    if name is None:
-        raise ValueError("Unknown language") from None  # noqa: TRY003
-
-    return name
+    return language.display_name
