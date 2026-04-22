@@ -7,7 +7,6 @@ services:
       - "9000:8000"
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
-      - LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
     env_file: ".env"
     runtime: nvidia
     deploy:
@@ -34,7 +33,7 @@ services:
       --uvicorn-log-level warning
 
   faster_whisper:
-    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.4.2
+    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.4.4
     ports:
       - "50001:50001"
     env_file: ".env"
