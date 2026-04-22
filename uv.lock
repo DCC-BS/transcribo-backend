@@ -11,11 +11,11 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-15T05:18:16.7191316Z"
+exclude-newer = "2026-04-15T13:06:46.818332312Z"
 exclude-newer-span = "P1W"
 
 [options.exclude-newer-package]
-dcc-backend-common = { timestamp = "2026-04-21T05:18:16.719146197Z", span = "P1D" }
+dcc-backend-common = { timestamp = "2026-04-21T13:06:46.818343974Z", span = "P1D" }
 
 [[package]]
 name = "ag-ui-protocol"
@@ -3359,7 +3359,7 @@ wheels = [
 
 [[package]]
 name = "transcribo-backend"
-version = "1.1.1"
+version = "1.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },

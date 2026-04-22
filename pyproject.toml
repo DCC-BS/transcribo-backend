@@ -1,6 +1,6 @@
 [project]
 name = "transcribo-backend"
-version = "1.1.1"
+version = "1.1.2"
 description = "The backend of the transcribo app"
 authors = [{name = "Data Competence Center Basel-Stadt", email = "dcc@bs.ch" },{ name = "Tobias Bollinger", email = "tobias.bollinger@bs.ch" }, { name = "Yanick Schraner", email = "yanick.schraner@bs.ch" }]
 readme = "README.md"
