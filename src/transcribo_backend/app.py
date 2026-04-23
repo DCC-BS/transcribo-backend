@@ -50,17 +50,15 @@ def _register_health_routes(app: FastAPI, config: AppConfig) -> None:
     """
     Register health routes for the application.
     """
-    whisper_base_url = config.whisper_url.removesuffix("v1")
-    llm_base_url = config.llm_url.removesuffix("v1")
     service_dependencies: list[ServiceDependency] = [
         ServiceDependency(
             name="whisper",
-            health_check_url=f"{whisper_base_url}readyz",
+            health_check_url=config.whisper_health_check_url,
             api_key=config.llm_api_key,
         ),
         ServiceDependency(
             name="llm",
-            health_check_url=f"{llm_base_url}health",
+            health_check_url=config.llm_health_check_url,
             api_key=config.llm_api_key,
         ),
     ]
