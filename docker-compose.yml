@@ -1,7 +1,7 @@
 services:
   llm:
     platform: linux/amd64
-    image: vllm/vllm-openai:v0.17.1-cu130
+    image: vllm/vllm-openai:v0.19.0-cu130
     container_name: llm
     ports:
       - "9000:8000"
