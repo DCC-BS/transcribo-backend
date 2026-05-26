@@ -11,11 +11,11 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-17T09:11:20.780282279Z"
+exclude-newer = "2026-05-19T13:41:00.205849437Z"
 exclude-newer-span = "P1W"
 
 [options.exclude-newer-package]
-dcc-backend-common = { timestamp = "2026-04-24T09:11:20.780291099Z", span = "PT0S" }
+dcc-backend-common = { timestamp = "2026-05-26T13:41:00.20598528Z", span = "PT0S" }
 
 [[package]]
 name = "ag-ui-protocol"
@@ -609,7 +609,7 @@ wheels = [
 
 [[package]]
 name = "dcc-backend-common"
-version = "0.1.8"
+version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "datasets" },
@@ -618,9 +618,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/3d/33b22639c02d7d51d9e80699fb3531fb87d5b15c1c6e6873c4aaa6852613/dcc_backend_common-0.1.8.tar.gz", hash = "sha256:662c720423d32da6b694de91323e5129fd44d6f7fdcd174df5c6c1622e3e5103", size = 221617, upload-time = "2026-04-24T09:06:27.103Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/00/cb386428f3ef2d8ad2e5cf2bf92c7bbb98deae941e424e95106f8714fc09/dcc_backend_common-0.1.9.tar.gz", hash = "sha256:effe02bcf12d69f050cac20fa782c29b7d3e3b12ebd71fbd666f437f92f45871", size = 221356, upload-time = "2026-05-26T13:24:34.622Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/1d/941b4b0f699eb541b4e254fb71537ba4571622a8a22ad906ca20a1040a44/dcc_backend_common-0.1.8-py3-none-any.whl", hash = "sha256:ab639e2bc28991e6dd516340f1fc2a2114f6a197c5d413354ab439f13b9306a4", size = 24170, upload-time = "2026-04-24T09:06:25.663Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/6d/8fe1c6505ef433290bf9566834d98de964a53e801231f565282330cf78e0/dcc_backend_common-0.1.9-py3-none-any.whl", hash = "sha256:02978e063bcb2d9c8c4051fbe21b44eb3200e5333ab175382c6f4ab047d6fdbb", size = 23883, upload-time = "2026-05-26T13:24:32.864Z" },
 ]
 
 [package.optional-dependencies]
@@ -3390,7 +3390,7 @@ dev = [
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "cachetools", specifier = ">=7.0.1" },
-    { name = "dcc-backend-common", extras = ["pydantic-ai"], specifier = "==0.1.8" },
+    { name = "dcc-backend-common", extras = ["pydantic-ai"], specifier = "==0.1.9" },
     { name = "dependency-injector", specifier = ">=4.48.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.133.1" },
     { name = "griffe", specifier = ">=1.5.0" },
