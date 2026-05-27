@@ -39,8 +39,8 @@ ENV APP_MODE=build
 WORKDIR /app
 
 # Install packages with
-RUN apk add --no-cache --allow-untrusted ffmpeg bash || \
-    (apk update && apk add --no-cache ffmpeg bash)
+RUN apk add --no-cache --allow-untrusted ffmpeg bash libstdc++ || \
+    (apk update && apk add --no-cache ffmpeg bash libstdc++)
 
 # Create non-root user (Alpine syntax)
 RUN addgroup -S app && adduser -S app -G app
