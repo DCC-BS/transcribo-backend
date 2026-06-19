@@ -31,7 +31,7 @@ class WhisperService:
     def __init__(self, app_config: AppConfig) -> None:
         self.app_config = app_config
         one_day = 60 * 60 * 24
-        self.taskId_to_progressId: TTLCache[str, str] = TTLCache(maxsize=1024, ttl=one_day)
+        self.taskId_to_progressId: TTLCache[str, str] = TTLCache[str, str](maxsize=1024, ttl=one_day)
         # Short connect, but long write/read so large multi-hour uploads do not time out.
         timeout = httpx.Timeout(connect=10.0, write=None, read=300.0, pool=10.0)
         limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
