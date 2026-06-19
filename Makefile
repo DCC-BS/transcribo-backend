@@ -19,8 +19,8 @@ test: ## Test the code with pytest (unit tests only)
 	@echo "🚀 Testing code: Running pytest"
 	@uv run python -m pytest --doctest-modules
 
-.PHONY: test-integration
-test-integration: ## Run integration tests (requires WHISPER_BACKEND_URL, optionally WHISPER_API_KEY)
+.PHONY: integration
+integration: ## Run integration tests (requires WHISPER_BACKEND_URL, optionally WHISPER_API_KEY)
 	@echo "🚀 Testing code: Running integration tests against $$WHISPER_BACKEND_URL"
 	@uv run python -m pytest -m integration tests/integration
 
