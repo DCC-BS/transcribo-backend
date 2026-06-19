@@ -146,6 +146,9 @@ def create_router(  # noqa: C901
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
+        # Custom error mapping (instead of the shared _unwrap_or_raise helper) because submit
+        # can fail with rate-limit (429) and oversized-upload (413) HTTPExceptions that need
+        # distinct user-facing messages; the other endpoints only surface generic failures.
         error = result.failure()._inner_value
         logger.exception("Failed to submit transcription task", exc_info=error)
 

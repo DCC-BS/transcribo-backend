@@ -86,6 +86,7 @@ def test_happy_path_logs_usage():
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 
-    client.post("/transcribe", files={"audio_file": ("audio.mp3", b"ID3" + b"\x00" * 100, "audio/mpeg")})
+    response = client.post("/transcribe", files={"audio_file": ("audio.mp3", b"ID3" + b"\x00" * 100, "audio/mpeg")})
 
+    assert response.status_code == 200
     usage_service.log_event.assert_called_once()

@@ -29,7 +29,10 @@ SAMPLE_FILES = [
     "sample-5s.mp4",
 ]
 
-requires_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+requires_ffmpeg = pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="ffmpeg/ffprobe not installed",
+)
 
 
 class TestIsMp3Format:
