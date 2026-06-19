@@ -459,14 +459,14 @@ name = "cohere"
 version = "7.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fastavro" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "requests" },
-    { name = "tokenizers" },
-    { name = "types-requests" },
-    { name = "typing-extensions" },
+    { name = "fastavro", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx", marker = "sys_platform != 'emscripten'" },
+    { name = "pydantic", marker = "sys_platform != 'emscripten'" },
+    { name = "pydantic-core", marker = "sys_platform != 'emscripten'" },
+    { name = "requests", marker = "sys_platform != 'emscripten'" },
+    { name = "tokenizers", marker = "sys_platform != 'emscripten'" },
+    { name = "types-requests", marker = "sys_platform != 'emscripten'" },
+    { name = "typing-extensions", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cf/3c/670631ee223d7b64d157dc3f309bf93bde65efe0bb1a8341d9b575f407d3/cohere-7.0.4.tar.gz", hash = "sha256:35b6a397d35ae6eafa1a02921f42c2a98309a990874533e5238efaf3426b6a21", size = 208794, upload-time = "2026-06-11T15:17:52.994Z" }
 wheels = [
@@ -3272,15 +3272,15 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "1.3.0"
+version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c1/37/cc24e33974e1439cf5ca62b0735b63026eabb768f472d8775f52d5851ed9/starlette-1.3.0.tar.gz", hash = "sha256:bb58cbb7a699da4ee4be9ed4cdfe4bc5b0390aa6dac1d1ac714ebebe8dc3c8df", size = 2702493, upload-time = "2026-06-11T06:27:41.869Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/42/56d31c5ee52dab0ad893d67d4f9c00f5ba2b4c5d87f392eca2c3fdce01cf/starlette-1.3.0-py3-none-any.whl", hash = "sha256:ff4ca1bc23de6a45cdfbbeb9b3caaea524c9221cdd8a6684ad7a4f651a83890b", size = 73492, upload-time = "2026-06-11T06:27:40.444Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
 ]
 
 [[package]]
@@ -3358,7 +3358,7 @@ name = "tokenizers"
 version = "0.23.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub" },
+    { name = "huggingface-hub", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c1/60/21f715d9faba5f5407ff759472ade058ec4a507ad62bcea47cb847239a73/tokenizers-0.23.1.tar.gz", hash = "sha256:1feeeadf865a7915adc25445dea30e9933e593c31bb96c277cee36de227c8bfa", size = 365748, upload-time = "2026-04-27T14:43:25.606Z" }
 wheels = [
@@ -3571,7 +3571,7 @@ name = "types-requests"
 version = "2.33.0.20260518"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "urllib3" },
+    { name = "urllib3", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e0/01/c5a19253fe1ac159159ddf9a3a07cec8bb5e486ec4d9002ad2821da0e5d2/types_requests-2.33.0.20260518.tar.gz", hash = "sha256:df7bd3bfe0ca8402dfb841e7d9be714bb5578203283d66d7dc4ef69343449a5e", size = 24752, upload-time = "2026-05-18T06:07:37.966Z" }
 wheels = [
