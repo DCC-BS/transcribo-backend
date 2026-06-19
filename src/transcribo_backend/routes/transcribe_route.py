@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Any
 
 import httpx
 from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, api_error_exception
@@ -37,29 +37,38 @@ def create_router(  # noqa: C901
     logger.info("Creating transcription router")
     router = APIRouter()
 
+    def _unwrap_or_raise(result: Any, *, log_message: str, not_found_message: str, error_message: str) -> Any:
+        """Return the value of a successful IOResult, or raise the mapped API error."""
+        if isinstance(result, IOSuccess):
+            return result.unwrap()._inner_value
+
+        error = result.failure()._inner_value
+        logger.exception(log_message, exc_info=error)
+        if _is_not_found_error(error):
+            raise api_error_exception(
+                errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
+                status=HTTPStatus.NOT_FOUND,
+                debugMessage=not_found_message,
+            ) from error
+
+        raise api_error_exception(
+            errorId=ApiErrorCodes.UNEXPECTED_ERROR,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            debugMessage=error_message,
+        ) from error
+
     @router.get("/task/{task_id}/status")
     async def get_task_status(task_id: str) -> TaskStatus:
         """
         Endpoint to get the status of a task by task_id.
         """
         result = await whisper_service.transcribe_get_task_status(task_id)
-        if isinstance(result, IOSuccess):
-            return result.unwrap()._inner_value
-
-        error = result.failure()._inner_value
-        logger.exception(f"Failed to get task status for {task_id}", exc_info=error)
-        if _is_not_found_error(error):
-            raise api_error_exception(
-                errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
-                status=HTTPStatus.NOT_FOUND,
-                debugMessage=f"Task {task_id} not found",
-            ) from error
-
-        raise api_error_exception(
-            errorId=ApiErrorCodes.UNEXPECTED_ERROR,
-            status=HTTPStatus.INTERNAL_SERVER_ERROR,
-            debugMessage="Failed to get task status",
-        ) from error
+        return _unwrap_or_raise(
+            result,
+            log_message=f"Failed to get task status for {task_id}",
+            not_found_message=f"Task {task_id} not found",
+            error_message="Failed to get task status",
+        )
 
     @router.get("/task/{task_id}/result")
     async def get_task_result(task_id: str) -> TranscriptionResponse:
@@ -67,23 +76,12 @@ def create_router(  # noqa: C901
         Endpoint to get the result of a task by task_id.
         """
         result = await whisper_service.transcribe_get_task_result(task_id)
-        if isinstance(result, IOSuccess):
-            return result.unwrap()._inner_value
-
-        error = result.failure()._inner_value
-        logger.exception(f"Failed to get task result for {task_id}", exc_info=error)
-        if _is_not_found_error(error):
-            raise api_error_exception(
-                errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
-                status=HTTPStatus.NOT_FOUND,
-                debugMessage=f"Task result for {task_id} not found",
-            ) from error
-
-        raise api_error_exception(
-            errorId=ApiErrorCodes.UNEXPECTED_ERROR,
-            status=HTTPStatus.INTERNAL_SERVER_ERROR,
-            debugMessage="Failed to get task result",
-        ) from error
+        return _unwrap_or_raise(
+            result,
+            log_message=f"Failed to get task result for {task_id}",
+            not_found_message=f"Task result for {task_id} not found",
+            error_message="Failed to get task result",
+        )
 
     @router.post("/transcribe")
     async def submit_transcribe(
@@ -116,24 +114,41 @@ def create_router(  # noqa: C901
                 debugMessage="Unsupported file type",
             )
 
-        # Read the uploaded file content
-        audio_data = await audio_file.read()
+        # Reject oversized uploads early, before streaming any bytes.
+        max_upload_bytes = whisper_service.app_config.max_upload_bytes
+        if audio_file.size is not None and audio_file.size > max_upload_bytes:
+            raise api_error_exception(
+                errorId=ApiErrorCodes.VALIDATION_ERROR,
+                status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                debugMessage="File is too large",
+            )
+
         usage_tracking_service.log_event(
             module="transcribe_route",
             func="transcribe",
             user_id=x_client_id or "unknown",
             num_speakers=num_speakers,
-            file_size=len(audio_data),
+            file_size=audio_file.size,
         )
 
-        # Submit the transcription task
-        result = await whisper_service.transcribe_submit_task(
-            audio_data, diarization_speaker_count=num_speakers, language=language
-        )
+        # Submit the transcription task. The file is streamed to disk and forwarded to
+        # Whisper without ever being fully loaded into memory.
+        try:
+            result = await whisper_service.transcribe_submit_task(
+                audio_file,
+                diarization_speaker_count=num_speakers,
+                language=language,
+                max_upload_bytes=max_upload_bytes,
+            )
+        finally:
+            await audio_file.close()
 
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
+        # Custom error mapping (instead of the shared _unwrap_or_raise helper) because submit
+        # can fail with rate-limit (429) and oversized-upload (413) HTTPExceptions that need
+        # distinct user-facing messages; the other endpoints only surface generic failures.
         error = result.failure()._inner_value
         logger.exception("Failed to submit transcription task", exc_info=error)
 

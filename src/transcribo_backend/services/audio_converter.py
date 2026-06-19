@@ -46,89 +46,74 @@ def is_mp3_format(audio_data: bytes) -> bool:
 
 
 @impure_safe
-def convert_to_mp3(file_data: bytes) -> bytes:
+def convert_to_mp3(input_path: str) -> str:
     """
-    Convert audio or video data to MP3 format using FFmpeg with balanced quality settings.
+    Convert an audio or video file to MP3 using FFmpeg with balanced quality settings.
+
+    Streams disk-to-disk: the input is read from ``input_path`` and the converted MP3 is
+    written to a freshly created temporary file whose path is returned. Neither the input
+    nor the output is loaded into memory here, so it is safe for multi-hour files.
 
     Args:
-        file_data: The audio/video bytes
+        input_path: Path to the source audio/video file on disk
 
     Returns:
-        IOResult[bytes, Exception]: The converted audio in MP3 format or an error
+        IOResult[str, Exception]: Path to the converted MP3 file, or an error. The caller
+        owns the returned file and is responsible for deleting it.
 
     Raises:
         AudioConversionError: If conversion fails (inside the Result)
     """
     try:
-        file_size_mb = len(file_data) / (1024 * 1024)
-        logger.info(f"Starting FFmpeg audio conversion, file size: {file_size_mb:.1f}MB")
+        input_size_mb = Path(input_path).stat().st_size / (1024 * 1024)
+        logger.info(f"Starting FFmpeg audio conversion, file size: {input_size_mb:.1f}MB")
 
-        # Create temporary files for input and output
-        with (
-            tempfile.NamedTemporaryFile(delete=False) as input_temp,
-            tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as output_temp,
-        ):
-            input_path = input_temp.name
+        # Create the output temp file (closed immediately; ffmpeg writes to its path).
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as output_temp:
             output_path = output_temp.name
 
-            try:
-                # Write input data to temporary file
-                input_temp.write(file_data)
-                input_temp.flush()
+        # Build FFmpeg command with balanced quality settings and resample to 16kHz
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            input_path,
+            "-ac",
+            "1",
+            "-acodec",
+            "libmp3lame",
+            "-b:a",
+            "64k",
+            "-ar",
+            "16000",
+            output_path,
+        ]
 
-                # Build FFmpeg command with balanced quality settings and resample to 16kHz
-                cmd = [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    input_path,
-                    "-ac",
-                    "1",
-                    "-acodec",
-                    "libmp3lame",
-                    "-b:a",
-                    "64k",
-                    "-ar",
-                    "16000",
-                    output_path,
-                ]
+        logger.info("Running FFmpeg conversion with balanced quality (64k bitrate)")
 
-                logger.info("Running FFmpeg conversion with balanced quality (64k bitrate)")
+        # Run FFmpeg
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+        )
 
-                # Run FFmpeg
-                result = subprocess.run(  # noqa: S603
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=300,  # 5 minute timeout
-                )
+        if result.returncode != 0:
+            error_msg = result.stderr or "Unknown FFmpeg error"
+            logger.error(f"FFmpeg conversion failed: {error_msg}")
+            Path(output_path).unlink(missing_ok=True)
+            raise AudioConversionError(error_msg)
 
-                if result.returncode != 0:
-                    error_msg = result.stderr or "Unknown FFmpeg error"
-                    logger.error(f"FFmpeg conversion failed: {error_msg}")
-                    raise AudioConversionError(error_msg)
-
-                # Read the converted file
-                with open(output_path, "rb") as f:
-                    print(type(f))
-                    converted_data = f.read()
-
-                output_size_mb = len(converted_data) / (1024 * 1024)
-                compression_ratio = file_size_mb / output_size_mb if output_size_mb > 0 else 0
-                logger.info(
-                    f"FFmpeg conversion completed. Output size: {output_size_mb:.1f}MB (compression ratio: {compression_ratio:.1f}x)"
-                )
-
-                return converted_data
-
-            finally:
-                # Clean up temporary files
-                try:
-                    Path(input_path).unlink(missing_ok=True)
-                    Path(output_path).unlink(missing_ok=True)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary files: {e}")
-
+        output_size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+        compression_ratio = input_size_mb / output_size_mb if output_size_mb > 0 else 0
+        logger.info(
+            f"FFmpeg conversion completed. Output size: {output_size_mb:.1f}MB (compression ratio: {compression_ratio:.1f}x)"
+        )
     except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
         logger.exception("FFmpeg subprocess error")
+        # output_path is set before subprocess.run, so clean up the partial output here too.
+        Path(output_path).unlink(missing_ok=True)
         raise AudioConversionError(str(e)) from e
+    else:
+        return output_path
