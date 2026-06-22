@@ -617,7 +617,7 @@ wheels = [
 
 [[package]]
 name = "dcc-backend-common"
-version = "0.1.9"
+version = "0.1.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "datasets" },
@@ -626,9 +626,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/00/cb386428f3ef2d8ad2e5cf2bf92c7bbb98deae941e424e95106f8714fc09/dcc_backend_common-0.1.9.tar.gz", hash = "sha256:effe02bcf12d69f050cac20fa782c29b7d3e3b12ebd71fbd666f437f92f45871", size = 221356, upload-time = "2026-05-26T13:24:34.622Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/73/71040a7b05249beb909a3e66bfdb3d7bc2ade5b52c78ef170a8330ff49b8/dcc_backend_common-0.1.11.tar.gz", hash = "sha256:4b824589e778ac228c2c616113eef40673198c60960213870a967185acc6a404", size = 234188, upload-time = "2026-05-29T09:31:42.329Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3c/6d/8fe1c6505ef433290bf9566834d98de964a53e801231f565282330cf78e0/dcc_backend_common-0.1.9-py3-none-any.whl", hash = "sha256:02978e063bcb2d9c8c4051fbe21b44eb3200e5333ab175382c6f4ab047d6fdbb", size = 23883, upload-time = "2026-05-26T13:24:32.864Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/d1/2f5e6409c0f6071845346abb258dfb05a56a3c43443d4d400b97ebfbf9f7/dcc_backend_common-0.1.11-py3-none-any.whl", hash = "sha256:e342b998bf9311f1782880b087beeb2c3f6426b35988e40b1edb07cdcb74cbcb", size = 25615, upload-time = "2026-05-29T09:31:41.386Z" },
 ]
 
 [package.optional-dependencies]
@@ -3486,7 +3486,7 @@ dev = [
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "cachetools", specifier = ">=7.0.1" },
-    { name = "dcc-backend-common", extras = ["pydantic-ai"], specifier = "==0.1.9" },
+    { name = "dcc-backend-common", extras = ["pydantic-ai"], specifier = "==0.1.11" },
     { name = "dependency-injector", specifier = ">=4.48.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.133.1" },
     { name = "griffe", specifier = ">=1.5.0" },
