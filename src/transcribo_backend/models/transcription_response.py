@@ -38,6 +38,7 @@ class Segment(BaseModel):
     end: float
     text: str
     speaker: str | None = None
+    words: list[Word] | None = None
 
 
 class TranscriptionResponse(BaseModel):

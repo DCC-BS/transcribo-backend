@@ -2,6 +2,7 @@ import asyncio
 import json
 import tempfile
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,8 @@ class WhisperService:
             segment.text = segment.text.replace("ß", "ss")
             segment.speaker = segment.speaker or "Unknown"
             segment.speaker = segment.speaker.strip().capitalize()
+            for word in segment.words or []:
+                word.word = word.word.replace("ß", "ss")
 
         return transcription
 
@@ -162,7 +165,7 @@ class WhisperService:
         vad_filter: bool,
         diarization: bool,
         diarization_speaker_count: int | None,
-        timestamp_granularities: str,
+        timestamp_granularities: Sequence[str],
         extra: dict[str, Any],
     ) -> dict[str, Any]:
         """Build the multipart form fields for a submit request (no I/O)."""
@@ -173,7 +176,7 @@ class WhisperService:
             "model": model,
             "progress_id": progress_id,
             "response_format": response_format.value,
-            "timestamp_granularities[]": timestamp_granularities,
+            "timestamp_granularities": json.dumps(list(timestamp_granularities)),
             "temperature": str(temperature),
             "vad_filter": str(vad_filter),
             "diarization": str(diarization),
@@ -228,12 +231,12 @@ class WhisperService:
         model: str = "large-v2",
         language: str | None = None,
         prompt: str | None = None,
-        response_format: ResponseFormat = ResponseFormat.JSON_DIARIZED,
+        response_format: ResponseFormat = ResponseFormat.VERBOSE_JSON,
         temperature: float | list[float] | None = None,
         vad_filter: bool = True,
         diarization: bool = True,
         diarization_speaker_count: int | None = None,
-        timestamp_granularities: str = "segment",
+        timestamp_granularities: Sequence[str] = ("word", "segment"),
         max_upload_bytes: int | None = None,
         **kwargs: Any,
     ) -> TaskStatus:
@@ -254,6 +257,9 @@ class WhisperService:
             vad_filter: Whether to use voice activity detection
             diarization: Whether to separate speakers
             diarization_speaker_count: Number of speakers to separate
+            timestamp_granularities: Timestamp levels to populate; must contain
+                "word" when response_format is VERBOSE_JSON, and word-level
+                probabilities are only returned with it
             max_upload_bytes: Hard cap on accepted upload size in bytes
             **kwargs: Additional parameters to pass to the API
 

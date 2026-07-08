@@ -148,7 +148,21 @@ async def test_get_task_result_returns_normalized_transcription():
     resp.raise_for_status = MagicMock()
     resp.json.return_value = {
         "segments": [
-            {"start": 0.0, "end": 1.0, "text": "  Straße  ", "speaker": "bob"},
+            {
+                "start": 0.0,
+                "end": 1.0,
+                "text": "  Straße  ",
+                "speaker": "bob",
+                "words": [
+                    {
+                        "start": 0.0,
+                        "end": 1.0,
+                        "word": " Straße",
+                        "probability": 0.42,
+                        "speaker": "bob",
+                    }
+                ],
+            },
             {"start": 1.0, "end": 2.0, "text": "hi", "speaker": None},
         ]
     }
@@ -163,6 +177,12 @@ async def test_get_task_result_returns_normalized_transcription():
     assert transcription.segments[0].speaker == "Bob"
     # Missing speaker defaults to "Unknown".
     assert transcription.segments[1].speaker == "Unknown"
+    # Word-level probabilities survive the round-trip; absent words stay None.
+    assert transcription.segments[0].words is not None
+    assert transcription.segments[0].words[0].probability == 0.42
+    # Words get the same ß -> ss normalization as the segment text.
+    assert transcription.segments[0].words[0].word == " Strasse"
+    assert transcription.segments[1].words is None
     # Completed result is evicted from the progress cache.
     assert "task-1" not in svc.taskId_to_progressId
 
