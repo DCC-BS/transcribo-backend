@@ -1,13 +1,13 @@
 import re
 from collections import Counter
+from difflib import SequenceMatcher
 
 from returns.future import future_safe
 
-from transcribo_backend.agents.speaker_inference_agent import SpeakerInferenceAgent
-from transcribo_backend.agents.transcript_cleanup_agent import TranscriptCleanupAgent
+from transcribo_backend.agents.transcript_postprocessing_agent import TranscriptPostProcessingAgent
 from transcribo_backend.models.keywords import Keyword
-from transcribo_backend.models.speaker_assignment import SpeakerAssignmentResult, SpeakerNameAssignment
-from transcribo_backend.models.transcript_cleanup import TranscriptCleanupResult, TranscriptCorrection
+from transcribo_backend.models.speaker_assignment import SpeakerNameAssignment
+from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment
 from transcribo_backend.utils.app_config import AppConfig
@@ -16,13 +16,19 @@ from transcribo_backend.utils.app_config import AppConfig
 # so clamping long transcripts keeps the LLM call within context.
 _MAX_TRANSCRIPT_CHARS = 32_000 * 4
 
-# Words below this Whisper probability are marked as uncertain in the prompt
-# (the cleanup model's primary correction candidates).
-_UNCERTAIN_WORD_THRESHOLD = 0.5
-
 # Corrections below this confidence are proposed by the model but not applied
 # (arXiv:2407.21414 found ~0.7 a good over-correction guard).
 _MIN_APPLY_CONFIDENCE = 0.7
+
+# Words below this Whisper probability are marked as uncertain in the cleanup
+# prompt (the primary correction and keyword candidates). Kept low so only
+# genuinely dubious words are marked — on noisy recordings a higher threshold
+# floods the prompt with ordinary words.
+_UNCERTAIN_WORD_THRESHOLD = 0.3
+
+# Tokens shorter than this are never marked: they are function words whose
+# recognition probability is noisy but whose spelling is never in question.
+_MIN_MARK_TOKEN_LENGTH = 4
 
 
 def _mark_uncertain_words(segment: Segment) -> str:
@@ -30,22 +36,30 @@ def _mark_uncertain_words(segment: Segment) -> str:
     text = segment.text.strip()
     for word in segment.words or []:
         token = word.word.strip()
-        if not token or word.probability >= _UNCERTAIN_WORD_THRESHOLD:
+        if len(token) < _MIN_MARK_TOKEN_LENGTH or word.probability >= _UNCERTAIN_WORD_THRESHOLD:
             continue
-        text = re.sub(rf"(?<!⟨){re.escape(token)}(?!⟩)", f"⟨{token}⟩", text, count=1)
+        # Whole-token match only — never mark a substring inside a word.
+        text = re.sub(
+            rf"(?<![\w⟨]){re.escape(token)}(?![\w⟩])",
+            f"⟨{token}⟩",
+            text,
+            count=1,
+        )
     return text
 
 
 def build_postprocessing_transcript(
-    segments: list[Segment], max_chars: int = _MAX_TRANSCRIPT_CHARS, mark_uncertain: bool = True
+    segments: list[Segment],
+    max_chars: int = _MAX_TRANSCRIPT_CHARS,
+    mark_uncertain: bool = False,
 ) -> str:
     """
     Render segments as "SPEAKER: text" lines, clamped to ``max_chars``.
 
     Consecutive segments of the same speaker are merged into one line (more
-    context per turn). When ``mark_uncertain`` is set, words the recognizer was
-    uncertain about are marked ⟨…⟩ — useful for the cleanup task, noise for the
-    speaker task, so the speaker call passes ``mark_uncertain=False``.
+    context per turn). When ``mark_uncertain`` is set, words the recognizer
+    was uncertain about are marked ⟨…⟩ — the primary correction and keyword
+    candidates for the post-processing prompt.
     """
     merged: list[tuple[str, list[str]]] = []
     for segment in segments:
@@ -67,9 +81,14 @@ def build_postprocessing_transcript(
     return "\n".join(lines)
 
 
+# Spoken forms of symbols that legitimately disappear when a rule rewrites
+# them to the symbol itself (e-mail rule: "at"/"ät" -> @, "punkt"/"dot" -> .).
+_SPOKEN_SYMBOL_WORDS = {"at", "ät", "punkt", "dot"}
+
+
 def _letter_word_count(text: str) -> int:
-    """Count letter-only tokens, ignoring digits and punctuation."""
-    return len(re.findall(r"[^\W\d_]+", text))
+    """Count letter-only tokens, ignoring digits, punctuation, and spoken symbol words."""
+    return len([w for w in re.findall(r"[^\W\d_]+", text) if w.lower() not in _SPOKEN_SYMBOL_WORDS])
 
 
 def apply_corrections(
@@ -85,7 +104,7 @@ def apply_corrections(
     nothing outside the returned pairs changes. Returns the corrections that
     actually changed at least one segment.
 
-    A correction is a targeted surface-form fix (spelling, hotword, formatting)
+    A correction is a targeted surface-form fix (spelling, proper name, formatting)
     and must never delete words: reformatting only rewrites digit/punctuation
     tokens (``1430 Uhr`` -> ``14:30 Uhr``), so it never lowers the letter-word
     count. A correction whose ``corrected`` has fewer letter words than its
@@ -113,6 +132,47 @@ def apply_corrections(
     return applied
 
 
+def apply_keyword_spellings_to_names(
+    assignments: list[SpeakerNameAssignment],
+    keywords: list[Keyword],
+    min_ratio: float = 0.8,
+) -> list[SpeakerNameAssignment]:
+    """
+    Snap inferred speaker names to user-confirmed keyword spellings.
+
+    The speaker prompt asks the model to prefer keyword spellings, but that is
+    unreliable — this deterministic pass guarantees it: a name close enough to
+    a keyword term (e.g. "Lena Feldman" vs "Lena Feldmann") is replaced
+    by the keyword's exact spelling. Only person keywords are considered: a
+    speaker name must never snap to a merely similar location/institution/
+    object term (e.g. a speaker "Basler" to the location "Basel").
+    """
+    person_terms = [k.term.strip() for k in keywords if k.type == "person" and k.term.strip()]
+    for assignment in assignments:
+        if not assignment.name:
+            continue
+        for term in person_terms:
+            if assignment.name == term:
+                continue
+            ratio = SequenceMatcher(None, assignment.name.lower(), term.lower()).ratio()
+            if ratio >= min_ratio:
+                assignment.name = term
+                break
+    return assignments
+
+
+def apply_corrections_to_names(
+    assignments: list[SpeakerNameAssignment], corrections: list[TranscriptCorrection]
+) -> list[SpeakerNameAssignment]:
+    """Apply the already-applied text corrections to the inferred names too."""
+    for correction in corrections:
+        pattern = re.compile(rf"(?<!\w){re.escape(correction.original.strip())}(?!\w)")
+        for assignment in assignments:
+            if assignment.name:
+                assignment.name = pattern.sub(correction.corrected.strip(), assignment.name)
+    return assignments
+
+
 def enumerate_roles(assignments: list[SpeakerNameAssignment]) -> list[SpeakerNameAssignment]:
     """
     Disambiguate speakers that fall back to a role (no name) but share it.
@@ -135,45 +195,45 @@ class TranscriptPostProcessingService:
     def __init__(
         self,
         app_config: AppConfig,
-        speaker_inference_agent: SpeakerInferenceAgent,
-        transcript_cleanup_agent: TranscriptCleanupAgent,
+        transcript_postprocessing_agent: TranscriptPostProcessingAgent,
     ):
         self.app_config = app_config
-        self.speaker_agent = speaker_inference_agent
-        self.cleanup_agent = transcript_cleanup_agent
+        self.agent = transcript_postprocessing_agent
 
     @future_safe
     async def post_process(
         self, segments: list[Segment], keywords: list[Keyword] | None = None
     ) -> TranscriptPostProcessingResult:
         """
-        Run cleanup (+ keywords) and then speaker name/role inference as two
-        sequential LLM calls. ``keywords`` entries are user-confirmed and
-        treated as authoritative spellings by the cleanup prompt.
+        Run speaker name/role inference, cleanup, and keyword proposal as ONE
+        LLM call on the transcript (raw diarization labels, uncertain words
+        marked). ``keywords`` entries are user-confirmed and treated as
+        authoritative spellings by the prompt; they are additionally enforced
+        deterministically on the inferred names.
 
-        Cleanup runs first and its corrections are applied in place, so the
-        speaker inference sees the consistent surface forms. Returns the
-        applied corrections, the speaker assignments, and the proposed keywords.
+        The returned correction pairs are applied deterministically to the
+        segment texts (and to the inferred names, so a misheard surname
+        unified in the text follows in the assignment too). Returns the
+        applied corrections, the speaker assignments, and the proposed
+        keywords.
         """
         keywords_section = ""
         if keywords:
             entries = "\n".join(f"{entry.term}: {entry.description}" for entry in keywords)
             keywords_section = f"\n\nUser keywords:\n{entries}"
 
-        # 1. Cleanup + keywords on the uncertainty-marked transcript.
-        cleanup_prompt = build_postprocessing_transcript(segments, mark_uncertain=True) + keywords_section
-        cleanup_result: TranscriptCleanupResult = await self.cleanup_agent.run(cleanup_prompt)
-        applied = apply_corrections(segments, cleanup_result.corrections)
+        prompt = build_postprocessing_transcript(segments, mark_uncertain=True) + keywords_section
+        result: TranscriptPostProcessingResult = await self.agent.run(prompt)
 
-        # 2. Speaker name + role inference on the now-corrected plain transcript.
-        # The keywords go to this agent too so assigned names use the
-        # user-confirmed spellings.
-        speaker_prompt = build_postprocessing_transcript(segments, mark_uncertain=False) + keywords_section
-        speaker_result: SpeakerAssignmentResult = await self.speaker_agent.run(speaker_prompt)
-        assignments = enumerate_roles(speaker_result.assignments)
+        assignments = enumerate_roles(result.speaker_assignments)
+        if keywords:
+            assignments = apply_keyword_spellings_to_names(assignments, keywords)
+
+        applied = apply_corrections(segments, result.corrections)
+        assignments = apply_corrections_to_names(assignments, applied)
 
         return TranscriptPostProcessingResult(
             corrections=applied,
             speaker_assignments=assignments,
-            keywords=cleanup_result.keywords,
+            keywords=result.keywords,
         )

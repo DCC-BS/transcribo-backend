@@ -19,6 +19,7 @@ from transcribo_backend.models.transcription_response import TranscriptionRespon
 from transcribo_backend.services.audio_converter import (
     convert_to_mp3,
     is_mp3_format,
+    is_ogg_format,
 )
 from transcribo_backend.utils.app_config import AppConfig
 
@@ -192,19 +193,27 @@ class WhisperService:
         return data
 
     @staticmethod
-    def _resolve_mp3_path(input_path: str) -> tuple[str, str | None]:
+    def _resolve_upload_path(input_path: str) -> tuple[str, str | None, str, str]:
         """
-        Ensure the audio at ``input_path`` is MP3, converting if needed.
+        Ensure the audio at ``input_path`` is a format the Whisper worker decodes.
 
-        Returns ``(upload_path, converted_path)`` where ``converted_path`` is the
-        ffmpeg output that the caller must delete, or ``None`` if no conversion happened.
+        MP3 and Ogg (Opus from the client) pass through untouched — re-encoding
+        Ogg to MP3 would add a lossy generation that degrades VAD/diarization.
+        Everything else is converted to MP3.
+
+        Returns ``(upload_path, converted_path, filename, content_type)`` where
+        ``converted_path`` is the ffmpeg output that the caller must delete, or
+        ``None`` if no conversion happened.
         """
         # Sniff only the leading bytes instead of loading the whole file.
         with open(input_path, "rb") as fh:
             header = fh.read(_SNIFF_BYTES)
 
+        if is_ogg_format(header):
+            return input_path, None, "audio.ogg", "audio/ogg"
+
         if is_mp3_format(header):
-            return input_path, None
+            return input_path, None, "audio.mp3", "audio/mpeg"
 
         # convert_to_mp3 is @impure_safe: failures come back as an IOFailure, so inspect the
         # result instead of calling .unwrap() (which would raise UnwrapFailedError, not the
@@ -214,12 +223,14 @@ class WhisperService:
             error = result.failure()._inner_value
             raise HTTPException(status_code=400, detail=f"Audio conversion failed: {error}") from error
         converted_path: str = result.unwrap()._inner_value
-        return converted_path, converted_path
+        return converted_path, converted_path, "audio.mp3", "audio/mpeg"
 
-    async def _post_submit(self, url: str, data: dict[str, Any], upload_path: str) -> TaskStatus:
-        """Stream the MP3 file from disk to the Whisper API and parse the response."""
+    async def _post_submit(
+        self, url: str, data: dict[str, Any], upload_path: str, filename: str, content_type: str
+    ) -> TaskStatus:
+        """Stream the audio file from disk to the Whisper API and parse the response."""
         with open(upload_path, "rb") as upload_fh:
-            files = {"file": ("audio.mp3", upload_fh, "audio/mpeg")}
+            files = {"file": (filename, upload_fh, content_type)}
             response = await self.client.post(url, data=data, files=files)
         response.raise_for_status()
         return TaskStatus(**response.json())
@@ -257,9 +268,7 @@ class WhisperService:
             vad_filter: Whether to use voice activity detection
             diarization: Whether to separate speakers
             diarization_speaker_count: Number of speakers to separate
-            timestamp_granularities: Timestamp levels to populate; must contain
-                "word" when response_format is VERBOSE_JSON, and word-level
-                probabilities are only returned with it
+            timestamp_granularities: Timestamp levels to populate
             max_upload_bytes: Hard cap on accepted upload size in bytes
             **kwargs: Additional parameters to pass to the API
 
@@ -292,8 +301,10 @@ class WhisperService:
             await self._stream_upload_to_disk(audio_file, input_path, max_upload_bytes)
             # Sniffing and the ffmpeg subprocess are blocking (up to the 300s ffmpeg timeout);
             # run them in a worker thread so a single conversion does not stall the event loop.
-            upload_path, converted_path = await asyncio.to_thread(self._resolve_mp3_path, input_path)
-            status = await self._post_submit(url, data, upload_path)
+            upload_path, converted_path, filename, content_type = await asyncio.to_thread(
+                self._resolve_upload_path, input_path
+            )
+            status = await self._post_submit(url, data, upload_path, filename, content_type)
             self.taskId_to_progressId[status.task_id] = progress_id
             return status
         finally:

@@ -103,11 +103,6 @@ def create_router(  # noqa: C901
         else:
             logger.warning("Transcript post-processing failed for %s", task_id, exc_info=post.failure()._inner_value)
 
-        # Word-level timestamps/probabilities are only needed for the
-        # post-processing prompt; the client does not use them.
-        for segment in transcription.segments:
-            segment.words = None
-
         return transcription
 
     @router.post("/transcribe")

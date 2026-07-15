@@ -6,13 +6,17 @@ from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 
 
 class TranscriptPostProcessingResult(BaseModel):
-    """Combined output of the transcript post-processing agent (single LLM call)."""
+    """Combined output of the transcript post-processing agent (single LLM call).
 
-    corrections: list[TranscriptCorrection] = Field(
-        ..., description="Global find/replace pairs; empty when the transcript is already consistent."
-    )
+    Field order matters: the model emits speaker assignments first, so the
+    correction task can anchor name unifications on the names it just assigned.
+    """
+
     speaker_assignments: list[SpeakerNameAssignment] = Field(
         ..., description="One entry per speaker label in the transcript."
+    )
+    corrections: list[TranscriptCorrection] = Field(
+        ..., description="Global find/replace pairs; empty when the transcript is already consistent."
     )
     keywords: list[Keyword] = Field(
         ...,

@@ -29,11 +29,3 @@ class SpeakerNameAssignment(BaseModel):
         if isinstance(value, str) and value.strip().lower() in {"", "null", "none", "unknown"}:
             return None
         return value
-
-
-class SpeakerAssignmentResult(BaseModel):
-    """Response model for the speaker assignment endpoint."""
-
-    assignments: list[SpeakerNameAssignment] = Field(..., description="One entry per speaker label in the transcript.")
-
-    model_config = ConfigDict(extra="forbid")

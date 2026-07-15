@@ -21,3 +21,16 @@ rules never add information.
 
 ## Dates
 - Write dates as `<day>. <month name> <year>` (e.g. `3. März 2026`) when a full date is spoken.
+
+## Phone numbers
+- Write Swiss mobile and phone numbers grouped as `079 123 45 67` (3-3-2-2 digit groups separated by spaces).
+- Never write the digits comma-separated or as prose (`079, 123, 45, 67` or `null sieben nein` stay wrong): join the spoken digits into one number and group them `079 123 45 67`.
+
+## E-mail addresses
+- Write spoken e-mail addresses as a single proper address: `blabla@blabla.ch`.
+- Replace spoken forms of the symbols with the symbols themselves (`at`/`ät` -> `@`, `punkt`/`dot` -> `.`) and remove the spaces between the parts (`blabla at blabla punkt ch` -> `blabla@blabla.ch`), all lowercase.
+
+## Serial numbers and identifier codes
+- Write spoken sequences of digits and letters that identify something — serial numbers, device numbers, IMEI, MAC addresses, article or reference codes — as ONE code with `-` between the spoken groups: `12B, 34, 17 18` -> `12B-34-17-18`.
+- Never write such sequences comma-separated or as loose digit groups.
+- Phone numbers are NOT serial numbers: they follow the phone number rule above. Dates, times, and currency amounts also keep their own rules.

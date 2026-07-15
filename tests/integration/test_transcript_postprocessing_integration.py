@@ -8,16 +8,15 @@ by ``AppConfig.from_env``). Run with::
     make test-integration
 
 No audio is needed: post-processing operates purely on the diarized transcript
-text (with Whisper word probabilities), so synthetic fixtures are sufficient.
+text, so synthetic fixtures are sufficient.
 """
 
 import os
 
 import pytest
 
-from transcribo_backend.agents.speaker_inference_agent import SpeakerInferenceAgent
-from transcribo_backend.agents.transcript_cleanup_agent import TranscriptCleanupAgent
-from transcribo_backend.models.transcription_response import Segment, Word
+from transcribo_backend.agents.transcript_postprocessing_agent import TranscriptPostProcessingAgent
+from transcribo_backend.models.transcription_response import Segment
 from transcribo_backend.services.transcript_postprocessing_service import TranscriptPostProcessingService
 from transcribo_backend.utils.app_config import AppConfig
 
@@ -30,51 +29,42 @@ pytestmark = [
 ]
 
 
-def _word(token: str, probability: float) -> Word:
-    return Word(start=0.0, end=1.0, word=token, probability=probability)
-
-
 def _make_service() -> TranscriptPostProcessingService:
     config = AppConfig.from_env()
-    return TranscriptPostProcessingService(config, SpeakerInferenceAgent(config), TranscriptCleanupAgent(config))
+    return TranscriptPostProcessingService(config, TranscriptPostProcessingAgent(config))
 
 
 # Speaker task: self-introduction (SPEAKER_00), direct address with response
 # (SPEAKER_01 = Anna), a mentioned-but-silent person (Herr Weber must not be
 # assigned), and a speaker with no evidence (SPEAKER_02).
-# Cleanup task: dominant-variant consistency (Dropshipping vs uncertain
-# Jobshipping), a misheard Basel street (Feldbergstrasse is in the hotwords
-# asset), and a currency formatting rule — the rest must stay verbatim.
-_UTTERANCES: list[tuple[str, str, list[Word] | None]] = [
+# Cleanup task: dominant-variant consistency (Dropshipping vs misheard
+# Jobshipping) and a currency formatting rule — the rest must stay verbatim.
+_UTTERANCES: list[tuple[str, str]] = [
     (
         "SPEAKER_00",
-        "Guten Morgen zusammen, mein Name ist Yanick Schraner, ich leite heute die Sitzung.",
-        None,
+        "Guten Morgen zusammen, mein Name ist Lena Feldmann, ich leite heute die Sitzung.",
     ),
-    ("SPEAKER_00", "Bevor wir starten: Herr Weber hat sich für heute entschuldigt.", None),
+    ("SPEAKER_00", "Bevor wir starten: Herr Weber hat sich für heute entschuldigt."),
     (
         "SPEAKER_00",
         "Anna, kannst du kurz den Stand beim Projekt Dropshipping-Analyse zusammenfassen?",
-        None,
     ),
     (
         "SPEAKER_01",
         "Gerne. Mit Jobshipping lässt sich laut unserer Umfrage kein Geld mehr verdienen.",
-        [_word(" Jobshipping", 0.3)],
     ),
     (
         "SPEAKER_01",
         "Ein Betroffener hat 22000 CHF verloren, sein Büro war an der Feldbärgstrasse in Basel.",
-        [_word(" Feldbärgstrasse", 0.35)],
     ),
-    ("SPEAKER_02", "Dazu eine kurze Frage: Ist der Bericht zum Dropshipping schon fertig?", None),
-    ("SPEAKER_01", "Ja, der ist seit letzter Woche fertig.", None),
-    ("SPEAKER_00", "Danke Anna. Dann kommen wir zum nächsten Punkt.", None),
+    ("SPEAKER_02", "Dazu eine kurze Frage: Ist der Bericht zum Dropshipping schon fertig?"),
+    ("SPEAKER_01", "Ja, der ist seit letzter Woche fertig."),
+    ("SPEAKER_00", "Danke Anna. Dann kommen wir zum nächsten Punkt."),
 ]
 
 FIXTURE_SEGMENTS = [
-    Segment(start=float(i), end=float(i + 1), text=text, speaker=speaker, words=words)
-    for i, (speaker, text, words) in enumerate(_UTTERANCES)
+    Segment(start=float(i), end=float(i + 1), text=text, speaker=speaker)
+    for i, (speaker, text) in enumerate(_UTTERANCES)
 ]
 
 
@@ -90,7 +80,7 @@ async def test_post_processing_assigns_names_and_unifies_variants():
     assert set(by_label) == {"SPEAKER_00", "SPEAKER_01", "SPEAKER_02"}
 
     # Self-introduction: strongest evidence.
-    assert by_label["SPEAKER_00"].name == "Yanick Schraner"
+    assert by_label["SPEAKER_00"].name == "Lena Feldmann"
     assert by_label["SPEAKER_00"].confidence >= 0.8
 
     # Direct address followed by response.
@@ -106,9 +96,6 @@ async def test_post_processing_assigns_names_and_unifies_variants():
     # Dominant variant wins everywhere.
     assert "Jobshipping" not in full_text
     assert "Dropshipping" in segments[3].text
-
-    # Misheard street corrected to the hotword spelling.
-    assert "Feldbergstrasse" in segments[4].text
 
     # Untouched content stays verbatim.
     assert segments[0].text == FIXTURE_SEGMENTS[0].text

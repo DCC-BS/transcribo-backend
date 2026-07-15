@@ -38,11 +38,6 @@ docker-down: ## Stop and remove the Docker container
 docker-logs:
 	@./scripts/run-varlock.sh run -- docker compose logs --follow
 
-.PHONY: fetch-bs-context
-fetch-bs-context: ## Refresh assets/basel_hotwords.txt from data.bs.ch (loaded at server start)
-	@echo "🚀 Fetching Basel hotwords from data.bs.ch"
-	@uv run python scripts/fetch_hotwords.py --force
-
 .PHONY: run
 run: ## Run the application
 	@echo "🚀 Running the application"

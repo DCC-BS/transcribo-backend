@@ -36,7 +36,7 @@ services:
       --reasoning-parser gemma4
 
   faster_whisper:
-    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.6.1
+    image: quay.io/ktbs/fd-itbs/faster-whisper:v1.6.4
     ports:
       - "50001:50001"
     env_file: ".env"

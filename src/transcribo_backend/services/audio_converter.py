@@ -15,6 +15,11 @@ class AudioConversionError(Exception):
         super().__init__(f"FFmpeg conversion failed: {error_message}")
 
 
+def is_ogg_format(audio_data: bytes) -> bool:
+    """Check if the audio data is an Ogg container (e.g. Opus from the client)."""
+    return audio_data.startswith(b"OggS")
+
+
 def is_mp3_format(audio_data: bytes) -> bool:
     """
     Check if the audio data is already in MP3 format with improved detection.
