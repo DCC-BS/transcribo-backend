@@ -37,9 +37,9 @@ class AppConfig(LlmConfig):
             max_upload_bytes: int = int(raw_max_upload_bytes)
         except ValueError:
             logger.warning(
-                "Invalid MAX_UPLOAD_BYTES=%r; falling back to default %d",
-                raw_max_upload_bytes,
-                _DEFAULT_MAX_UPLOAD_BYTES,
+                "Invalid MAX_UPLOAD_BYTES, falling back to default",
+                invalid_value=raw_max_upload_bytes,
+                default_value=_DEFAULT_MAX_UPLOAD_BYTES,
             )
             max_upload_bytes = _DEFAULT_MAX_UPLOAD_BYTES
 

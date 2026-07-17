@@ -1,6 +1,6 @@
 [project]
 name = "transcribo-backend"
-version = "1.2.0"
+version = "1.2.1"
 description = "The backend of the transcribo app"
 authors = [{name = "Data Competence Center Basel-Stadt", email = "dcc@bs.ch" },{ name = "Tobias Bollinger", email = "tobias.bollinger@bs.ch" }, { name = "Yanick Schraner", email = "yanick.schraner@bs.ch" }]
 readme = "README.md"
@@ -19,7 +19,7 @@ classifiers = [
 dependencies = [
     "audioop-lts; python_version >= '3.13'",
     "cachetools>=7.0.1",
-    "dcc-backend-common[pydantic_ai]==0.1.9",
+    "dcc-backend-common[pydantic_ai]==0.1.18",
     "dependency-injector>=4.48.3",
     "fastapi[standard]>=0.133.1",
     "griffe>=1.5.0",
