@@ -1,5 +1,6 @@
 import re
 from collections import Counter
+from collections.abc import Iterable
 from difflib import SequenceMatcher
 
 from returns.future import future_safe
@@ -12,9 +13,13 @@ from transcribo_backend.models.transcript_postprocessing import TranscriptPostPr
 from transcribo_backend.models.transcription_response import Segment
 from transcribo_backend.utils.app_config import AppConfig
 
-# Same bound as the summarize endpoint; name evidence typically appears early,
-# so clamping long transcripts keeps the LLM call within context.
+# Same bound as the summarize endpoint, keeps the LLM call within context.
 _MAX_TRANSCRIPT_CHARS = 32_000 * 4
+
+# Share of the clamp budget reserved for the transcript tail: name evidence
+# clusters at both ends of a conversation — introductions at the start,
+# thanks and sign-offs ("Vielen Dank, Frau Müller") at the end.
+_TAIL_CLAMP_SHARE = 0.3
 
 # Corrections below this confidence are proposed by the model but not applied
 # (arXiv:2407.21414 found ~0.7 a good over-correction guard).
@@ -29,6 +34,53 @@ _UNCERTAIN_WORD_THRESHOLD = 0.3
 # Tokens shorter than this are never marked: they are function words whose
 # recognition probability is noisy but whose spelling is never in question.
 _MIN_MARK_TOKEN_LENGTH = 4
+
+
+# Fallback label for segments the diarizer left unattributed. whisper_service
+# applies the same default upstream; this is the guard for segments that never
+# went through it.
+_UNKNOWN_SPEAKER = "Unknown"
+
+# Diarization labels are shortened for the prompt ("Speaker_00" -> "S00"): the
+# long label costs 7 tokens per transcript line against 5 for the short one
+# (measured with the Gemma tokenizer), ~5% of a prompt near the clamp. The
+# encoding never leaves the prompt boundary — assignments are decoded back
+# before anything downstream sees them.
+#
+# Case-insensitive because whisper_service normalises labels with
+# .capitalize(): the pipeline emits "Speaker_00" where the diarizer's own form
+# is "SPEAKER_00", and both must shorten.
+_LONG_SPEAKER_LABEL_RE = re.compile(r"^speaker[_ ]?(\d+)$", re.IGNORECASE)
+
+
+def encode_speaker_label(label: str) -> str:
+    """Shorten a diarization label for the prompt: ``Speaker_00`` -> ``S00``.
+
+    Digits are preserved verbatim, so zero-padding survives the round trip.
+    Any other shape (e.g. ``"Unknown"``) passes through unchanged — the
+    encoding is an optimisation, never a requirement.
+    """
+    match = _LONG_SPEAKER_LABEL_RE.match(label)
+    return f"S{match.group(1)}" if match else label
+
+
+def decode_speaker_labels(assignments: list[SpeakerNameAssignment], segments: list[Segment]) -> None:
+    """Restore the original diarization labels on ``assignments``, in place.
+
+    A lookup against the labels actually present in ``segments``, not an
+    inverse regex: that restores the original spelling exactly and cannot
+    expand a diarizer's native short label into one the transcript never had.
+    Labels with no counterpart in the transcript are left untouched rather than
+    given a fabricated expansion.
+    """
+    by_short = {encode_speaker_label(label): label for label in _distinct_speakers(segments)}
+    for assignment in assignments:
+        assignment.speaker = by_short.get(assignment.speaker, assignment.speaker)
+
+
+def _distinct_speakers(segments: list[Segment]) -> set[str]:
+    """The distinct speaker labels in ``segments``, unattributed ones folded into the fallback."""
+    return {segment.speaker or _UNKNOWN_SPEAKER for segment in segments}
 
 
 def _mark_uncertain_words(segment: Segment) -> str:
@@ -48,6 +100,22 @@ def _mark_uncertain_words(segment: Segment) -> str:
     return text
 
 
+def _take_lines_within(lines: Iterable[str], budget: int) -> tuple[list[str], int]:
+    """Take lines in order while they fit ``budget`` chars; return them and the chars used.
+
+    Each line costs its length plus the newline that joins it.
+    """
+    taken: list[str] = []
+    used = 0
+    for line in lines:
+        cost = len(line) + 1
+        if used + cost > budget:
+            break
+        taken.append(line)
+        used += cost
+    return taken, used
+
+
 def build_postprocessing_transcript(
     segments: list[Segment],
     max_chars: int = _MAX_TRANSCRIPT_CHARS,
@@ -60,25 +128,35 @@ def build_postprocessing_transcript(
     context per turn). When ``mark_uncertain`` is set, words the recognizer
     was uncertain about are marked ⟨…⟩ — the primary correction and keyword
     candidates for the post-processing prompt.
+
+    Clamping keeps the head AND the tail of the transcript (middle replaced
+    by a […] line): introductions cluster at the start, but thanks and
+    sign-offs naming speakers cluster at the end.
     """
     merged: list[tuple[str, list[str]]] = []
     for segment in segments:
-        speaker = segment.speaker or "Unknown"
+        speaker = segment.speaker or _UNKNOWN_SPEAKER
         text = _mark_uncertain_words(segment) if mark_uncertain else segment.text.strip()
         if merged and merged[-1][0] == speaker:
             merged[-1][1].append(text)
         else:
             merged.append((speaker, [text]))
 
-    lines: list[str] = []
-    total = 0
-    for speaker, texts in merged:
-        line = f"{speaker}: {' '.join(texts)}"
-        total += len(line) + 1
-        if total > max_chars:
-            break
-        lines.append(line)
-    return "\n".join(lines)
+    # Grouping above compares the original labels; only the rendered line uses
+    # the short form, so merging is unaffected by the encoding. Encoding is
+    # resolved once per speaker rather than once per line.
+    short = {speaker: encode_speaker_label(speaker) for speaker, _ in merged}
+    lines = [f"{short[speaker]}: {' '.join(texts)}" for speaker, texts in merged]
+    if sum(len(line) + 1 for line in lines) <= max_chars:
+        return "\n".join(lines)
+
+    tail, tail_used = _take_lines_within(reversed(lines), int(max_chars * _TAIL_CLAMP_SHARE))
+    tail.reverse()
+    head, _ = _take_lines_within(lines[: len(lines) - len(tail)], max_chars - tail_used)
+
+    if not tail:
+        return "\n".join(head)
+    return "\n".join([*head, "[…]", *tail])
 
 
 # Spoken forms of symbols that legitimately disappear when a rule rewrites
@@ -214,7 +292,7 @@ class TranscriptPostProcessingService:
         The returned correction pairs are applied deterministically to the
         segment texts (and to the inferred names, so a misheard surname
         unified in the text follows in the assignment too). Returns the
-        applied corrections, the speaker assignments, and the proposed
+        inferred title, applied corrections, speaker assignments, and proposed
         keywords.
         """
         keywords_section = ""
@@ -225,6 +303,10 @@ class TranscriptPostProcessingService:
         prompt = build_postprocessing_transcript(segments, mark_uncertain=True) + keywords_section
         result: TranscriptPostProcessingResult = await self.agent.run(prompt)
 
+        # Undo the prompt-side label shortening immediately: everything below
+        # this line, and everything the route returns, deals in real labels.
+        decode_speaker_labels(result.speaker_assignments, segments)
+
         assignments = enumerate_roles(result.speaker_assignments)
         if keywords:
             assignments = apply_keyword_spellings_to_names(assignments, keywords)
@@ -233,6 +315,7 @@ class TranscriptPostProcessingService:
         assignments = apply_corrections_to_names(assignments, applied)
 
         return TranscriptPostProcessingResult(
+            title=result.title,
             corrections=applied,
             speaker_assignments=assignments,
             keywords=result.keywords,

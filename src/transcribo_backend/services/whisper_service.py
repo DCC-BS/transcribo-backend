@@ -59,24 +59,26 @@ class WhisperService:
         Returns:
             TaskStatus: The current status of the task
         """
-        if task_id not in self.taskId_to_progressId:
-            raise HTTPException(status_code=404, detail="Task not found")
         url = self._task_endpoint(f"status?task_id={task_id}")
-        progress_url = f"{self.app_config.whisper_url}/progress/{self.taskId_to_progressId[task_id]}"
 
-        # Get the status of the transcription task
+        # Whisper is the source of truth for the task itself. The in-memory
+        # progress mapping only enriches the status and may be gone (result
+        # already fetched once, or backend restart) while the task still exists.
         response = await self.client.get(url)
         if response.status_code == 404:
             return TaskStatus(task_id=task_id, status=TaskStatusEnum.FAILED)
         response.raise_for_status()
 
-        progress_response = await self.client.get(progress_url)
-        if progress_response.status_code == 404:
-            raise HTTPException(status_code=404, detail="Progress not found")
-        progress_response.raise_for_status()
+        progress: float | None = None
+        progress_id = self.taskId_to_progressId.get(task_id)
+        if progress_id is not None:
+            progress_url = f"{self.app_config.whisper_url}/progress/{progress_id}"
+            progress_response = await self.client.get(progress_url)
+            if progress_response.status_code != 404:
+                progress_response.raise_for_status()
+                progress = ProgressResponse(**progress_response.json()).progress
 
-        progress = ProgressResponse(**progress_response.json())
-        return TaskStatus(**response.json(), progress=progress.progress)
+        return TaskStatus(**response.json(), progress=progress)
 
     @future_safe
     async def transcribe_get_task_result(self, task_id: str) -> TranscriptionResponse:

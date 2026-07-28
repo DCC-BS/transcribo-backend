@@ -1,7 +1,9 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
+from transcribo_backend.agents.transcript_postprocessing_agent import TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS
 from transcribo_backend.models.keywords import Keyword
 from transcribo_backend.models.speaker_assignment import SpeakerNameAssignment
 from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
@@ -13,6 +15,8 @@ from transcribo_backend.services.transcript_postprocessing_service import (
     apply_corrections_to_names,
     apply_keyword_spellings_to_names,
     build_postprocessing_transcript,
+    decode_speaker_labels,
+    encode_speaker_label,
     enumerate_roles,
 )
 from transcribo_backend.utils.app_config import AppConfig
@@ -33,6 +37,67 @@ def _make_service(
     return service, agent
 
 
+def test_postprocessing_title_contract_is_short():
+    assert "Use 3-6 words and no more than 60 characters." in TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS
+
+    with pytest.raises(ValidationError):
+        TranscriptPostProcessingResult(
+            title="x" * 61,
+            speaker_assignments=[],
+            corrections=[],
+            keywords=[],
+        )
+
+
+def test_encode_speaker_label_round_trip():
+    """Short labels save prompt tokens; the original spelling must come back."""
+    segments = [
+        Segment(start=0.0, end=1.0, text="a", speaker="Speaker_00"),
+        Segment(start=1.0, end=2.0, text="b", speaker="SPEAKER_07"),
+        Segment(start=2.0, end=3.0, text="c", speaker="Speaker_100"),
+        Segment(start=3.0, end=4.0, text="d", speaker=None),
+    ]
+
+    assert encode_speaker_label("Speaker_00") == "S00"
+    # whisper_service .capitalize()s labels, but the diarizer's own upper-case
+    # form must shorten too — otherwise the saving silently disappears.
+    assert encode_speaker_label("SPEAKER_07") == "S07"
+    assert encode_speaker_label("Speaker_100") == "S100"
+    # Anything that is not a numbered speaker label is left alone.
+    assert encode_speaker_label("Unknown") == "Unknown"
+
+    assignments = [
+        SpeakerNameAssignment(speaker="S00", name="Anna", confidence=0.9),
+        SpeakerNameAssignment(speaker="S07", name="Beat", confidence=0.9),
+        SpeakerNameAssignment(speaker="S100", name=None, confidence=0.0),
+        SpeakerNameAssignment(speaker="Unknown", name=None, confidence=0.0),
+    ]
+    decode_speaker_labels(assignments, segments)
+    assert [a.speaker for a in assignments] == ["Speaker_00", "SPEAKER_07", "Speaker_100", "Unknown"]
+
+
+def test_decode_speaker_labels_never_invents_a_label():
+    """Decoding is a lookup against the transcript, so it only ever restores labels that exist."""
+    segments = [Segment(start=0.0, end=1.0, text="a", speaker="Speaker_00")]
+
+    # Answered with the long label instead of the short one: already correct.
+    assignments = [SpeakerNameAssignment(speaker="Speaker_00", name="Anna", confidence=0.9)]
+    decode_speaker_labels(assignments, segments)
+    assert assignments[0].speaker == "Speaker_00"
+
+    # Hallucinated a label that is not in the transcript: no correct expansion
+    # exists, so it is passed through rather than fabricated into "Speaker_09".
+    invented = [SpeakerNameAssignment(speaker="S09", name="Niemand", confidence=0.5)]
+    decode_speaker_labels(invented, segments)
+    assert invented[0].speaker == "S09"
+
+    # A diarizer that natively emits "S0" keeps it — an inverse regex would
+    # wrongly expand it to "Speaker_0".
+    native_short = [SpeakerNameAssignment(speaker="S0", name="Anna", confidence=0.9)]
+    decode_speaker_labels(native_short, [Segment(start=0.0, end=1.0, text="a", speaker="S0")])
+    assert native_short[0].speaker == "S0"
+
+
 def test_build_transcript_merges_speakers():
     segments = [
         Segment(start=0.0, end=1.0, text=" Hallo zusammen. ", speaker="Speaker_00"),
@@ -41,13 +106,26 @@ def test_build_transcript_merges_speakers():
         Segment(start=3.0, end=4.0, text="Ohne Sprecher.", speaker=None),
     ]
 
+    # Labels are rendered short; merging still compares the original labels.
     transcript = build_postprocessing_transcript(segments)
-    assert transcript == (
-        "Speaker_00: Hallo zusammen. Wir reden über Jobshipping.\nSpeaker_01: Genau.\nUnknown: Ohne Sprecher."
-    )
+    assert transcript == "S00: Hallo zusammen. Wir reden über Jobshipping.\nS01: Genau.\nUnknown: Ohne Sprecher."
 
+    clamped = build_postprocessing_transcript(segments, max_chars=55)
+    assert clamped == "S00: Hallo zusammen. Wir reden über Jobshipping."
+
+
+def test_build_transcript_clamp_keeps_head_and_tail():
+    segments = [
+        Segment(start=0.0, end=1.0, text="a" * 20, speaker="S0"),
+        Segment(start=1.0, end=2.0, text="b" * 20, speaker="S1"),
+        Segment(start=2.0, end=3.0, text="c" * 20, speaker="S2"),
+        Segment(start=3.0, end=4.0, text="Danke, Anna.", speaker="S3"),
+    ]
+
+    # Budget forces a cut: the head keeps the opening, the tail keeps the
+    # sign-off (where names are often mentioned), the middle becomes […].
     clamped = build_postprocessing_transcript(segments, max_chars=60)
-    assert clamped == "Speaker_00: Hallo zusammen. Wir reden über Jobshipping."
+    assert clamped == f"S0: {'a' * 20}\n[…]\nS3: Danke, Anna."
 
 
 def test_build_transcript_marks_uncertain_words():
@@ -72,7 +150,7 @@ def test_build_transcript_marks_uncertain_words():
     ]
 
     transcript = build_postprocessing_transcript(segments, mark_uncertain=True)
-    assert transcript == "Speaker_00: Das war gut. Wir reden über ⟨Jobshipping⟩.\nSpeaker_01: Genau."
+    assert transcript == "S00: Das war gut. Wir reden über ⟨Jobshipping⟩.\nS01: Genau."
 
     # Without the flag the marks stay off.
     assert "⟨" not in build_postprocessing_transcript(segments)
@@ -220,6 +298,7 @@ async def test_post_process_single_call_returns_all():
         SpeakerNameAssignment(speaker="A", name="Anna", confidence=0.9, evidence="Ich bin Anna."),
     ]
     agent_result = TranscriptPostProcessingResult(
+        title="Dropshipping im Gespräch",
         speaker_assignments=assignments,
         corrections=[
             TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", reason="dominant", confidence=0.9),
@@ -243,6 +322,30 @@ async def test_post_process_single_call_returns_all():
     assert [c.original for c in result.corrections] == ["Jobshipping"]
     assert result.speaker_assignments == assignments
     assert result.keywords[0].term == "Dropshipping"
+    assert result.title == "Dropshipping im Gespräch"
+
+
+@pytest.mark.anyio
+async def test_post_process_returns_original_speaker_labels():
+    """The prompt uses short labels, the API contract keeps the diarization ones."""
+    agent_result = TranscriptPostProcessingResult(
+        title="Sitzung",
+        speaker_assignments=[SpeakerNameAssignment(speaker="S00", name="Anna", confidence=0.9)],
+        corrections=[],
+        keywords=[],
+    )
+
+    service, agent = _make_service(agent_result)
+    segments = [Segment(start=0.0, end=1.0, text="Ich bin Anna.", speaker="Speaker_00")]
+
+    result_io = await service.post_process(segments)
+    result = result_io.unwrap()._inner_value
+
+    # Short label goes out to the model ...
+    agent.run.assert_called_once_with("S00: Ich bin Anna.")
+    # ... the original label comes back to the caller.
+    assert result.speaker_assignments[0].speaker == "Speaker_00"
+    assert segments[0].speaker == "Speaker_00"
 
 
 @pytest.mark.anyio
@@ -250,6 +353,7 @@ async def test_post_process_never_changes_segment_count_timestamps_or_words():
     """Cleanup only rewrites texts: count, start/end, speaker labels, and the
     word-level fragments must come out exactly as they went in."""
     agent_result = TranscriptPostProcessingResult(
+        title="Dropshipping im Gespräch",
         speaker_assignments=[SpeakerNameAssignment(speaker="A", name="Anna", confidence=0.9)],
         corrections=[
             TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", reason="dominant", confidence=0.9),
@@ -291,7 +395,7 @@ async def test_post_process_propagates_agent_failure():
 @pytest.mark.anyio
 async def test_post_process_appends_user_keywords_to_prompt():
     service, agent = _make_service(
-        TranscriptPostProcessingResult(speaker_assignments=[], corrections=[], keywords=[]),
+        TranscriptPostProcessingResult(title=None, speaker_assignments=[], corrections=[], keywords=[]),
     )
     segments = [Segment(start=0.0, end=1.0, text="Die Bibos Academy.", speaker="A")]
     keywords = [Keyword(term="BeeBoss", description="Name der Dropshipping-Academy", type="institution")]

@@ -110,6 +110,7 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
     postprocessing_service.post_process = AsyncMock(
         return_value=IOSuccess(
             TranscriptPostProcessingResult(
+                title="Gespräch über Dropshipping",
                 speaker_assignments=[],
                 corrections=[
                     TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", confidence=0.9),
@@ -131,6 +132,7 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
     assert all("words" not in s for s in body["segments"])
     # Cleanup output rides along in separate fields.
     assert body["applied_corrections"][0]["original"] == "Jobshipping"
+    assert body["title"] == "Gespräch über Dropshipping"
 
 
 def test_task_result_survives_postprocessing_failure():
@@ -152,6 +154,7 @@ def test_task_result_survives_postprocessing_failure():
     assert len(body["segments"]) == 1
     assert body["speaker_assignments"] is None
     assert body["applied_corrections"] is None
+    assert body["title"] is None
 
 
 def test_happy_path_logs_usage():

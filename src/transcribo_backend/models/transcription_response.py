@@ -30,6 +30,9 @@ class Segment(BaseModel):
 
 class TranscriptionResponse(BaseModel):
     segments: list[Segment]
+    # Concise title inferred from the transcript. None when post-processing
+    # failed or the topic was too ambiguous.
+    title: str | None = None
     # One entry per diarization label, resolved to a real name where the
     # transcript provides evidence. None when assignment was not attempted
     # or failed (the transcription itself is valid without it).

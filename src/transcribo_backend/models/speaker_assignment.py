@@ -4,7 +4,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class SpeakerNameAssignment(BaseModel):
     """A single diarization label resolved to a human name, or left unknown."""
 
-    speaker: str = Field(..., description="Diarization label as it appears in the transcript, e.g. 'SPEAKER_00'.")
+    # This model is both the LLM output schema and part of the public
+    # TranscriptionResponse, so the description must stay true of the value the
+    # API returns. The short form the prompt uses is documented where it is
+    # introduced — in the agent instructions.
+    speaker: str = Field(..., description="Diarization label as it appears in the transcript, e.g. 'Speaker_00'.")
     name: str | None = Field(
         None,
         description="Real name of this speaker, exactly as written in the transcript. None when no textual evidence exists.",

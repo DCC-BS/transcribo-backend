@@ -97,6 +97,7 @@ def create_router(  # noqa: C901
         )
         if isinstance(post, IOSuccess):
             result_value = post.unwrap()._inner_value
+            transcription.title = result_value.title
             transcription.applied_corrections = result_value.corrections
             transcription.speaker_assignments = result_value.speaker_assignments
             transcription.keywords = result_value.keywords

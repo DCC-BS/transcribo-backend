@@ -10,21 +10,21 @@ from transcribo_backend.models.transcript_postprocessing import TranscriptPostPr
 
 _ASSETS_DIR = Path(__file__).parent.parent / "assets"
 
-# One call replaces the former speaker-inference + cleanup sequence: both
-# tasks read the same transcript, so merging them halves the transmitted
-# input and saves a full LLM round-trip.
-#
-# Prompt design references DiarizationLM (arXiv:2401.03506) for the speaker
-# task and confidence-guided ASR error correction (arXiv:2509.25048,
-# arXiv:2407.21414) for the correction task: structured output, deterministic
-# decoding, the model only proposes targeted replacement pairs for
-# low-confidence or inconsistent surface forms, and corrections are applied
-# deterministically in Python — the model cannot rewrite text outside the
-# pairs it returns.
 TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS = """
-You post-process a transcript (usually German, but possibly another language) produced by a Whisper-like speech recognizer with speaker diarization. You receive the transcript as "SPEAKER: text" lines; consecutive utterances of the same speaker are merged into a single line. Labels are diarization labels such as SPEAKER_00, SPEAKER_01. The recognizer transcribes audio in ~30-second windows, so the same name or term is often spelled differently across the transcript and rare local names are misheard. Words the recognizer was uncertain about are marked as ⟨word⟩; unmarked words were heard clearly. A marked word that does not look like a canonical word of the transcript's language is almost always a mishearing. The examples below are German; apply the same logic in the transcript's language.
+You post-process a transcript (usually German, but possibly another language) produced by a Whisper-like speech recognizer with speaker diarization. You receive the transcript as "SPEAKER: text" lines; consecutive utterances of the same speaker are merged into a single line. Labels are diarization labels such as S00, S01. The recognizer transcribes audio in ~30-second windows, so the same name or term is often spelled differently across the transcript and rare local names are misheard. Words the recognizer was uncertain about are marked as ⟨word⟩; unmarked words were heard clearly. A marked word that does not look like a canonical word of the transcript's language is almost always a mishearing. The examples below are German; apply the same logic in the transcript's language.
 
-You perform THREE tasks on this transcript and return all three results in one response. Use EXACTLY these output field names: speaker_assignments entries have {{speaker, name, role, confidence, evidence}}; corrections entries have {{original, corrected, reason, confidence}}; keywords entries have {{term, description, type}} — the keyword field is "term", never "value" or "name".
+You perform FOUR tasks on this transcript and return all four results in one response. Use EXACTLY these output field names: title; speaker_assignments entries have {{speaker, name, role, confidence, evidence}}; corrections entries have {{original, corrected, reason, confidence}}; keywords entries have {{term, description, type}} — the keyword field is "term", never "value" or "name".
+
+# Task 0: transcription title
+
+Propose a short, descriptive title for the transcription.
+- The title should reflect the main topic of the conversation.
+- It should be in the language of the transcript.
+- Use 3-6 words and no more than 60 characters.
+- Prefer a compact noun phrase; do not write a sentence or subtitle.
+- Avoid generic titles like "Transcription" or "Meeting"; use the content to be specific (e.g., "Discussion on Q3 Marketing Strategy").
+- If the transcript is too short or ambiguous to determine a topic, set title to null.
+- For meetings, include a date only when it is explicitly stated in the transcript.
 
 # Task 1: speaker name and role inference
 
@@ -33,13 +33,16 @@ Return exactly one assignment per distinct label. Ignore ⟨⟩ marks in this ta
 Work procedure — follow it literally:
 1. List every personal name mentioned anywhere in the transcript.
 2. For each mention, decide WHO the name refers to using the evidence patterns below. The label that UTTERS a name is that person ONLY in a self-introduction; in every other pattern the name belongs to a NEIGHBOURING label or to nobody.
-3. Assign a name to a label only when exactly one pattern clearly applies. Quote the decisive sentence in the evidence field.
+3. Assign a name to a label when one pattern clearly applies, or when several weak mentions combine (COMBINED EVIDENCE). Quote the decisive sentence(s) in the evidence field.
+4. Before finalizing, re-check every label whose name is still null — INCLUDING labels that got a role — against the unassigned names from step 1. A role is never a substitute for a name; a missed weak pattern or a missed combination is the most common cause of a wrongly-null name.
 
 Evidence patterns (only these justify a name):
-- SELF-INTRODUCTION — the label itself says "Mein Name ist X" / "Ich bin X" / "My name is X": that label is X. Confidence 0.9-1.0.
+- SELF-IDENTIFICATION — the label itself says "Mein Name ist X", "Ich bin X", "Hier am Mikrofon ist X", "Hier spricht X", or explicitly states they are holding the microphone/speaking: that label is X. Confidence 0.9-1.0.
 - INTRODUCTION OF ANOTHER — a label announces a person ("Hier ist Frau Meier.", "Wir haben mit Lisa gesprochen.", "Das sagt Lisa.") and a DIFFERENT label speaks next (or shortly after, on the announced topic): the FOLLOWING label is that person. The announcer is NEVER the announced person. Confidence 0.7-0.9.
 - DIRECT ADDRESS — "Was denkst du, Anna?": the label that ANSWERS in the next turn is Anna, not the asker. Reverse form: "Danke, Anna." right after a turn → the PREVIOUS label is Anna, not the thanker. Confidence 0.6-0.8.
+- GREETING / SIGN-OFF — a label greets or thanks a named person at the start or end of the conversation ("Guten Tag, Herr Meier.", "Vielen Dank, Frau Müller, dass Sie da waren."): the addressed person is the label that answers next — for a sign-off the label that spoke before — never the greeter or thanker. Confidence 0.6-0.8.
 - THIRD-PERSON ATTRIBUTION — a statement is attributed to a named person and one label's utterances clearly match it ("Wie Herr Meier vorhin gesagt hat …"). Confidence 0.3-0.6.
+- COMBINED EVIDENCE — no single mention is decisive, but two or more independent weak mentions (direct addresses, greetings, attributions) point the SAME name to the SAME label and no mention contradicts it: assign the name. Confidence 0.5-0.7; quote the two strongest sentences in evidence.
 
 Negative rules — the common mistakes:
 - NEVER assign a mentioned name to the label that speaks the sentence containing it (except self-introduction). "Ich habe mit Peter gesprochen" says NOTHING about the speaker's own name.
@@ -51,7 +54,7 @@ Additional rules:
 - Same person spelled in phonetically similar variants: use the dominant variant for EVERY label of that person.
 - Two labels that are the same person: report both, same name.
 - A stated pseudonym counts as the name ("Wir nennen sie Lisa").
-- ROLE: short noun in the transcript's language (e.g. "Moderatorin", "Dolmetscher", "Expertin"), only from evidence — an introduction ("Das ist der Dolmetscher."), an explicit function statement, or clear behavior (asks all questions → Moderator/Interviewer; translates others → Dolmetscher). No evidence → role null. name and role are independent: a nameless speaker can still have a clear role.
+- ROLE: short noun in the transcript's language (e.g. "Moderatorin", "Dolmetscher", "Expertin"), only from evidence — an introduction ("Das ist der Dolmetscher."), an explicit function statement, or clear behavior (asks all questions → Moderator/Interviewer; translates others → Dolmetscher). No evidence → role null. name and role are independent: a nameless speaker can still have a clear role, and a label with a clear role still gets the full name search (step 4).
 - evidence: shortest verbatim quote justifying name and/or role, else null.
 
 # Task 2: transcript consistency corrections
@@ -76,13 +79,13 @@ Hard constraints — violating any of these is worse than missing a correction:
 # Task 3: keyword proposal
 
 Propose the special names and terms whose spelling or identity a human should review. The test is NOT "do I understand this word" but "is this a canonical, correctly-spelled word of the transcript's language, or a name/coinage a reviewer might want to confirm". Include:
-- person names, organizations, brands, products;
+- EVERY SINGLE person name (first names, last names), organization, brand, product;
 - software/tool/project names INCLUDING derived or Germanized forms (a tool "Wordly" appearing as "der Wordler");
 - places (streets, districts, rivers) and domain-specific terms;
 - any token that is not a standard dictionary word — coinages, anglicisms, plausible recognizer renderings of a name;
-- every ⟨marked⟩ word that looks like a name, place, or term but not a canonical spelling (⟨Krellbachareal⟩: clearly a location, clearly misspelled) — include it even without a correction.
+- ALL ⟨marked⟩ words that are unsure or look like a name, place, or term but not a canonical spelling (⟨Krellbachareal⟩: clearly a location, clearly misspelled) — include them all so a human can review them.
 
-Scan the transcript line by line and collect EVERY candidate; missing a genuine term is worse than including a borderline one.
+Scan the transcript line by line and collect EVERY single candidate. You must be EXTREMELY SENSITIVE and AGGRESSIVE in proposing keywords. If there is ANY doubt whether a word is a standard dictionary word, or if it is ANY kind of proper noun (every single name, place, or brand in the text), include it. Missing a name or a genuine term is considered a critical failure, much worse than including a borderline one. Also include all words that seem structurally weird or grammatically incorrect as they might be misheard names.
 
 Per entry: term exactly as it appears AFTER your corrections (no ⟨⟩ markers); description (max 8 words, transcript's language) saying what it most likely is, "unsicher: …" when unsure; type: "person", "location", "institution", or "object" (products, tools, projects, domain terms).
 - A fully understandable word ("Dropshipping") still belongs here if it is a name, product-derived, or not a dictionary word.

@@ -8,10 +8,14 @@ from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 class TranscriptPostProcessingResult(BaseModel):
     """Combined output of the transcript post-processing agent (single LLM call).
 
-    Field order matters: the model emits speaker assignments first, so the
-    correction task can anchor name unifications on the names it just assigned.
+    Field order follows the task order in the prompt.
     """
 
+    title: str | None = Field(
+        ...,
+        max_length=60,
+        description="Short 3-6 word title in the transcript language, or null when the topic is ambiguous.",
+    )
     speaker_assignments: list[SpeakerNameAssignment] = Field(
         ..., description="One entry per speaker label in the transcript."
     )
