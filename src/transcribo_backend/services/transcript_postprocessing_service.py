@@ -11,7 +11,6 @@ from transcribo_backend.models.speaker_assignment import SpeakerNameAssignment
 from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment
-from transcribo_backend.utils.app_config import AppConfig
 
 # Same bound as the summarize endpoint, keeps the LLM call within context.
 _MAX_TRANSCRIPT_CHARS = 32_000 * 4
@@ -34,6 +33,9 @@ _UNCERTAIN_WORD_THRESHOLD = 0.3
 # Tokens shorter than this are never marked: they are function words whose
 # recognition probability is noisy but whose spelling is never in question.
 _MIN_MARK_TOKEN_LENGTH = 4
+
+# Marks the gap where the middle of an over-long transcript was dropped.
+_ELISION_LINE = "[…]"
 
 
 # Fallback label for segments the diarizer left unattributed. whisper_service
@@ -100,15 +102,17 @@ def _mark_uncertain_words(segment: Segment) -> str:
     return text
 
 
-def _take_lines_within(lines: Iterable[str], budget: int) -> tuple[list[str], int]:
-    """Take lines in order while they fit ``budget`` chars; return them and the chars used.
+def _line_cost(line: str) -> int:
+    """Budget a line consumes: its length plus the newline that joins it."""
+    return len(line) + 1
 
-    Each line costs its length plus the newline that joins it.
-    """
+
+def _take_lines_within(lines: Iterable[str], budget: int) -> tuple[list[str], int]:
+    """Take lines in order while they fit ``budget`` chars; return them and the chars used."""
     taken: list[str] = []
     used = 0
     for line in lines:
-        cost = len(line) + 1
+        cost = _line_cost(line)
         if used + cost > budget:
             break
         taken.append(line)
@@ -147,16 +151,18 @@ def build_postprocessing_transcript(
     # resolved once per speaker rather than once per line.
     short = {speaker: encode_speaker_label(speaker) for speaker, _ in merged}
     lines = [f"{short[speaker]}: {' '.join(texts)}" for speaker, texts in merged]
-    if sum(len(line) + 1 for line in lines) <= max_chars:
+    if sum(_line_cost(line) for line in lines) <= max_chars:
         return "\n".join(lines)
 
     tail, tail_used = _take_lines_within(reversed(lines), int(max_chars * _TAIL_CLAMP_SHARE))
     tail.reverse()
-    head, _ = _take_lines_within(lines[: len(lines) - len(tail)], max_chars - tail_used)
+    # The elision line joins the two halves and costs budget like any other line.
+    elision_used = _line_cost(_ELISION_LINE) if tail else 0
+    head, _ = _take_lines_within(lines[: len(lines) - len(tail)], max_chars - tail_used - elision_used)
 
     if not tail:
         return "\n".join(head)
-    return "\n".join([*head, "[…]", *tail])
+    return "\n".join([*head, _ELISION_LINE, *tail])
 
 
 # Spoken forms of symbols that legitimately disappear when a rule rewrites
@@ -167,6 +173,15 @@ _SPOKEN_SYMBOL_WORDS = {"at", "ät", "punkt", "dot"}
 def _letter_word_count(text: str) -> int:
     """Count letter-only tokens, ignoring digits, punctuation, and spoken symbol words."""
     return len([w for w in re.findall(r"[^\W\d_]+", text) if w.lower() not in _SPOKEN_SYMBOL_WORDS])
+
+
+def _boundary_pattern(surface_form: str) -> re.Pattern[str]:
+    """Match ``surface_form`` only as a whole word, never inside a longer one.
+
+    Shared by the text and the name pass so the two can never disagree on what
+    counts as a word boundary.
+    """
+    return re.compile(rf"(?<!\w){re.escape(surface_form)}(?!\w)")
 
 
 def apply_corrections(
@@ -198,7 +213,7 @@ def apply_corrections(
         if _letter_word_count(corrected) < _letter_word_count(original):
             continue
 
-        pattern = re.compile(rf"(?<!\w){re.escape(original)}(?!\w)")
+        pattern = _boundary_pattern(original)
         changed = False
         for segment in segments:
             new_text = pattern.sub(corrected, segment.text)
@@ -224,18 +239,24 @@ def apply_keyword_spellings_to_names(
     by the keyword's exact spelling. Only person keywords are considered: a
     speaker name must never snap to a merely similar location/institution/
     object term (e.g. a speaker "Basler" to the location "Basel").
+
+    The closest term above ``min_ratio`` wins, not the first one found: with
+    two similar confirmed spellings in the vocabulary the outcome must depend
+    on similarity, never on the order of the keyword list.
     """
-    person_terms = [k.term.strip() for k in keywords if k.type == "person" and k.term.strip()]
+    # Lowered once per term, not once per (assignment, term) pair.
+    person_terms = [(k.term.strip(), k.term.strip().lower()) for k in keywords if k.type == "person" and k.term.strip()]
     for assignment in assignments:
-        if not assignment.name:
+        name = assignment.name
+        if not name:
             continue
-        for term in person_terms:
-            if assignment.name == term:
-                continue
-            ratio = SequenceMatcher(None, assignment.name.lower(), term.lower()).ratio()
-            if ratio >= min_ratio:
-                assignment.name = term
-                break
+        lowered = name.lower()
+        ratio, term = max(
+            ((SequenceMatcher(None, lowered, low).ratio(), term) for term, low in person_terms),
+            default=(0.0, name),
+        )
+        if ratio >= min_ratio:
+            assignment.name = term
     return assignments
 
 
@@ -244,7 +265,7 @@ def apply_corrections_to_names(
 ) -> list[SpeakerNameAssignment]:
     """Apply the already-applied text corrections to the inferred names too."""
     for correction in corrections:
-        pattern = re.compile(rf"(?<!\w){re.escape(correction.original.strip())}(?!\w)")
+        pattern = _boundary_pattern(correction.original.strip())
         for assignment in assignments:
             if assignment.name:
                 assignment.name = pattern.sub(correction.corrected.strip(), assignment.name)
@@ -269,13 +290,27 @@ def enumerate_roles(assignments: list[SpeakerNameAssignment]) -> list[SpeakerNam
     return assignments
 
 
+def render_keywords(keywords: list[Keyword] | None) -> list[str]:
+    """Render user-confirmed keywords as the ``term: description`` lines the prompt uses."""
+    return [f"{entry.term}: {entry.description}" for entry in keywords or []]
+
+
 class TranscriptPostProcessingService:
+    """Runs the post-processing agent over a transcript and applies its output.
+
+    Attributes:
+        agent: The agent performing title, speaker, cleanup, and keyword tasks.
+    """
+
     def __init__(
         self,
-        app_config: AppConfig,
         transcript_postprocessing_agent: TranscriptPostProcessingAgent,
     ):
-        self.app_config = app_config
+        """Initialize the service.
+
+        Args:
+            transcript_postprocessing_agent: The post-processing agent to run.
+        """
         self.agent = transcript_postprocessing_agent
 
     @future_safe
@@ -297,8 +332,7 @@ class TranscriptPostProcessingService:
         """
         keywords_section = ""
         if keywords:
-            entries = "\n".join(f"{entry.term}: {entry.description}" for entry in keywords)
-            keywords_section = f"\n\nUser keywords:\n{entries}"
+            keywords_section = "\n\nUser keywords:\n" + "\n".join(render_keywords(keywords))
 
         prompt = build_postprocessing_transcript(segments, mark_uncertain=True) + keywords_section
         result: TranscriptPostProcessingResult = await self.agent.run(prompt)

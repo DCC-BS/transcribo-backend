@@ -19,21 +19,28 @@ from transcribo_backend.services.transcript_postprocessing_service import (
     encode_speaker_label,
     enumerate_roles,
 )
-from transcribo_backend.utils.app_config import AppConfig
 
 
 def _word(token: str, probability: float) -> Word:
     return Word(start=0.0, end=1.0, word=token, probability=probability)
 
 
+def _empty_result() -> TranscriptPostProcessingResult:
+    """An agent result that proposes nothing — for tests that only assert on the prompt."""
+    return TranscriptPostProcessingResult(title=None, speaker_assignments=[], corrections=[], keywords=[])
+
+
 def _make_service(
-    agent_result: TranscriptPostProcessingResult,
+    agent_result: TranscriptPostProcessingResult | None = None,
+    side_effect: Exception | None = None,
 ) -> tuple[TranscriptPostProcessingService, MagicMock]:
     """Service wired with the single mocked post-processing agent."""
-    app_config = MagicMock(spec=AppConfig)
     agent = MagicMock()
-    agent.run = AsyncMock(return_value=agent_result)
-    service = TranscriptPostProcessingService(app_config, agent)
+    if side_effect is not None:
+        agent.run = AsyncMock(side_effect=side_effect)
+    else:
+        agent.run = AsyncMock(return_value=agent_result or _empty_result())
+    service = TranscriptPostProcessingService(agent)
     return service, agent
 
 
@@ -101,17 +108,17 @@ def test_decode_speaker_labels_never_invents_a_label():
 def test_build_transcript_merges_speakers():
     segments = [
         Segment(start=0.0, end=1.0, text=" Hallo zusammen. ", speaker="Speaker_00"),
-        Segment(start=1.0, end=2.0, text="Wir reden über Jobshipping.", speaker="Speaker_00"),
+        Segment(start=1.0, end=2.0, text="Wir reden über Cloudmigrazion.", speaker="Speaker_00"),
         Segment(start=2.0, end=3.0, text="Genau.", speaker="Speaker_01"),
         Segment(start=3.0, end=4.0, text="Ohne Sprecher.", speaker=None),
     ]
 
     # Labels are rendered short; merging still compares the original labels.
     transcript = build_postprocessing_transcript(segments)
-    assert transcript == "S00: Hallo zusammen. Wir reden über Jobshipping.\nS01: Genau.\nUnknown: Ohne Sprecher."
+    assert transcript == "S00: Hallo zusammen. Wir reden über Cloudmigrazion.\nS01: Genau.\nUnknown: Ohne Sprecher."
 
     clamped = build_postprocessing_transcript(segments, max_chars=55)
-    assert clamped == "S00: Hallo zusammen. Wir reden über Jobshipping."
+    assert clamped == "S00: Hallo zusammen. Wir reden über Cloudmigrazion."
 
 
 def test_build_transcript_clamp_keeps_head_and_tail():
@@ -133,7 +140,7 @@ def test_build_transcript_marks_uncertain_words():
         Segment(
             start=0.0,
             end=1.0,
-            text="Das war gut. Wir reden über Jobshipping.",
+            text="Das war gut. Wir reden über Cloudmigrazion.",
             speaker="Speaker_00",
             words=[
                 # Short function words stay unmarked even at low probability.
@@ -143,14 +150,14 @@ def test_build_transcript_marks_uncertain_words():
                 # A token that only occurs inside another word ("reden")
                 # must never be marked mid-word.
                 _word(" eden", 0.1),
-                _word(" Jobshipping", 0.2),
+                _word(" Cloudmigrazion", 0.2),
             ],
         ),
         Segment(start=1.0, end=2.0, text="Genau.", speaker="Speaker_01", words=None),
     ]
 
     transcript = build_postprocessing_transcript(segments, mark_uncertain=True)
-    assert transcript == "S00: Das war gut. Wir reden über ⟨Jobshipping⟩.\nS01: Genau."
+    assert transcript == "S00: Das war gut. Wir reden über ⟨Cloudmigrazion⟩.\nS01: Genau."
 
     # Without the flag the marks stay off.
     assert "⟨" not in build_postprocessing_transcript(segments)
@@ -158,13 +165,13 @@ def test_build_transcript_marks_uncertain_words():
 
 def test_apply_corrections_word_boundary_and_threshold():
     segments = [
-        Segment(start=0.0, end=1.0, text="Jobshipping ist toll.", speaker="A"),
-        Segment(start=1.0, end=2.0, text="Alles über Jobshipping, auch Jobshippingkurse.", speaker="B"),
+        Segment(start=0.0, end=1.0, text="Cloudmigrazion ist toll.", speaker="A"),
+        Segment(start=1.0, end=2.0, text="Alles über Cloudmigrazion, auch Cloudmigrazionkurse.", speaker="B"),
         Segment(start=2.0, end=3.0, text="Um 14.30 geht es weiter.", speaker="A"),
     ]
 
     corrections = [
-        TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", reason="dominant", confidence=0.95),
+        TranscriptCorrection(original="Cloudmigrazion", corrected="Cloudmigration", reason="dominant", confidence=0.95),
         TranscriptCorrection(original="14.30", corrected="14:30 Uhr", reason="time rule", confidence=0.9),
         TranscriptCorrection(original="toll", corrected="super", reason="style", confidence=0.5),
         TranscriptCorrection(original="ist", corrected="ist", reason="no-op", confidence=1.0),
@@ -173,11 +180,11 @@ def test_apply_corrections_word_boundary_and_threshold():
 
     applied = apply_corrections(segments, corrections)
 
-    assert segments[0].text == "Dropshipping ist toll."
-    # Word boundary: the compound "Jobshippingkurse" stays untouched.
-    assert segments[1].text == "Alles über Dropshipping, auch Jobshippingkurse."
+    assert segments[0].text == "Cloudmigration ist toll."
+    # Word boundary: the compound "Cloudmigrazionkurse" stays untouched.
+    assert segments[1].text == "Alles über Cloudmigration, auch Cloudmigrazionkurse."
     assert segments[2].text == "Um 14:30 Uhr geht es weiter."
-    assert [c.original for c in applied] == ["Jobshipping", "14.30"]
+    assert [c.original for c in applied] == ["Cloudmigrazion", "14.30"]
 
 
 def test_apply_corrections_skips_content_deleting_pairs():
@@ -298,31 +305,33 @@ async def test_post_process_single_call_returns_all():
         SpeakerNameAssignment(speaker="A", name="Anna", confidence=0.9, evidence="Ich bin Anna."),
     ]
     agent_result = TranscriptPostProcessingResult(
-        title="Dropshipping im Gespräch",
+        title="Cloudmigration im Gespräch",
         speaker_assignments=assignments,
         corrections=[
-            TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", reason="dominant", confidence=0.9),
+            TranscriptCorrection(
+                original="Cloudmigrazion", corrected="Cloudmigration", reason="dominant", confidence=0.9
+            ),
             TranscriptCorrection(original="toll", corrected="super", reason="style", confidence=0.4),
         ],
-        keywords=[Keyword(term="Dropshipping", description="Online-Handelsmodell", type="object")],
+        keywords=[Keyword(term="Cloudmigration", description="IT-Vorhaben", type="object")],
     )
 
     service, agent = _make_service(agent_result)
-    segments = [Segment(start=0.0, end=1.0, text="Jobshipping ist toll.", speaker="A")]
+    segments = [Segment(start=0.0, end=1.0, text="Cloudmigrazion ist toll.", speaker="A")]
 
     result_io = await service.post_process(segments)
     result = result_io.unwrap()._inner_value
 
     # One call on the raw labels and uncorrected text.
-    agent.run.assert_called_once_with("A: Jobshipping ist toll.")
+    agent.run.assert_called_once_with("A: Cloudmigrazion ist toll.")
     # Corrections are applied to the segments afterwards.
-    assert segments[0].text == "Dropshipping ist toll."
+    assert segments[0].text == "Cloudmigration ist toll."
 
     # Only the applied correction is reported; the low-confidence one is dropped.
-    assert [c.original for c in result.corrections] == ["Jobshipping"]
+    assert [c.original for c in result.corrections] == ["Cloudmigrazion"]
     assert result.speaker_assignments == assignments
-    assert result.keywords[0].term == "Dropshipping"
-    assert result.title == "Dropshipping im Gespräch"
+    assert result.keywords[0].term == "Cloudmigration"
+    assert result.title == "Cloudmigration im Gespräch"
 
 
 @pytest.mark.anyio
@@ -353,18 +362,20 @@ async def test_post_process_never_changes_segment_count_timestamps_or_words():
     """Cleanup only rewrites texts: count, start/end, speaker labels, and the
     word-level fragments must come out exactly as they went in."""
     agent_result = TranscriptPostProcessingResult(
-        title="Dropshipping im Gespräch",
+        title="Cloudmigration im Gespräch",
         speaker_assignments=[SpeakerNameAssignment(speaker="A", name="Anna", confidence=0.9)],
         corrections=[
-            TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", reason="dominant", confidence=0.9),
+            TranscriptCorrection(
+                original="Cloudmigrazion", corrected="Cloudmigration", reason="dominant", confidence=0.9
+            ),
         ],
         keywords=[],
     )
     service, _agent = _make_service(agent_result)
 
-    words = [_word(" Jobshipping", 0.2), _word(" toll", 0.9)]
+    words = [_word(" Cloudmigrazion", 0.2), _word(" toll", 0.9)]
     segments = [
-        Segment(start=0.0, end=1.5, text="Jobshipping ist toll.", speaker="A", words=words),
+        Segment(start=0.0, end=1.5, text="Cloudmigrazion ist toll.", speaker="A", words=words),
         Segment(start=1.5, end=3.0, text="Genau.", speaker="B", words=None),
     ]
 
@@ -373,17 +384,14 @@ async def test_post_process_never_changes_segment_count_timestamps_or_words():
     assert len(segments) == 2
     assert [(s.start, s.end, s.speaker) for s in segments] == [(0.0, 1.5, "A"), (1.5, 3.0, "B")]
     # Text corrected, word fragments untouched (still the recognizer's output).
-    assert segments[0].text == "Dropshipping ist toll."
+    assert segments[0].text == "Cloudmigration ist toll."
     assert segments[0].words == words
     assert segments[1].words is None
 
 
 @pytest.mark.anyio
 async def test_post_process_propagates_agent_failure():
-    app_config = MagicMock(spec=AppConfig)
-    agent = MagicMock()
-    agent.run = AsyncMock(side_effect=RuntimeError("llm down"))
-    service = TranscriptPostProcessingService(app_config, agent)
+    service, _ = _make_service(side_effect=RuntimeError("llm down"))
 
     result_io = await service.post_process([Segment(start=0.0, end=1.0, text="Hallo.", speaker="A")])
 
@@ -394,13 +402,24 @@ async def test_post_process_propagates_agent_failure():
 
 @pytest.mark.anyio
 async def test_post_process_appends_user_keywords_to_prompt():
-    service, agent = _make_service(
-        TranscriptPostProcessingResult(title=None, speaker_assignments=[], corrections=[], keywords=[]),
-    )
-    segments = [Segment(start=0.0, end=1.0, text="Die Bibos Academy.", speaker="A")]
-    keywords = [Keyword(term="BeeBoss", description="Name der Dropshipping-Academy", type="institution")]
+    service, agent = _make_service()
+    segments = [Segment(start=0.0, end=1.0, text="Die Beta Kliniken.", speaker="A")]
+    keywords = [Keyword(term="Vita Kliniken", description="Name der Klinikgruppe", type="institution")]
 
     await service.post_process(segments, keywords=keywords)
 
-    expected = "A: Die Bibos Academy.\n\nUser keywords:\nBeeBoss: Name der Dropshipping-Academy"
+    expected = "A: Die Beta Kliniken.\n\nUser keywords:\nVita Kliniken: Name der Klinikgruppe"
     agent.run.assert_called_once_with(expected)
+
+
+def test_apply_keyword_spellings_picks_the_closest_term():
+    """With two similar confirmed spellings the closer one wins, not the first listed."""
+    assignments = [SpeakerNameAssignment(speaker="A", name="Lena Feldmenn", confidence=0.9)]
+    keywords = [
+        Keyword(term="Lena Feldmayer", description="", type="person"),
+        Keyword(term="Lena Feldmann", description="", type="person"),
+    ]
+
+    apply_keyword_spellings_to_names(assignments, keywords)
+
+    assert assignments[0].name == "Lena Feldmann"

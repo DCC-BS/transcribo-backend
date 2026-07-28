@@ -31,14 +31,14 @@ pytestmark = [
 
 def _make_service() -> TranscriptPostProcessingService:
     config = AppConfig.from_env()
-    return TranscriptPostProcessingService(config, TranscriptPostProcessingAgent(config))
+    return TranscriptPostProcessingService(TranscriptPostProcessingAgent(config))
 
 
 # Speaker task: self-introduction (SPEAKER_00), direct address with response
 # (SPEAKER_01 = Anna), a mentioned-but-silent person (Herr Weber must not be
 # assigned), and a speaker with no evidence (SPEAKER_02).
-# Cleanup task: dominant-variant consistency (Dropshipping vs misheard
-# Jobshipping) and a currency formatting rule — the rest must stay verbatim.
+# Cleanup task: dominant-variant consistency (Cloudmigration vs misheard
+# Cloudmigrazion) and a currency formatting rule — the rest must stay verbatim.
 _UTTERANCES: list[tuple[str, str]] = [
     (
         "SPEAKER_00",
@@ -47,17 +47,17 @@ _UTTERANCES: list[tuple[str, str]] = [
     ("SPEAKER_00", "Bevor wir starten: Herr Weber hat sich für heute entschuldigt."),
     (
         "SPEAKER_00",
-        "Anna, kannst du kurz den Stand beim Projekt Dropshipping-Analyse zusammenfassen?",
+        "Anna, kannst du kurz den Stand beim Projekt Cloudmigration-Analyse zusammenfassen?",
     ),
     (
         "SPEAKER_01",
-        "Gerne. Mit Jobshipping lässt sich laut unserer Umfrage kein Geld mehr verdienen.",
+        "Gerne. Mit Cloudmigrazion lässt sich laut unserer Umfrage kein Geld mehr verdienen.",
     ),
     (
         "SPEAKER_01",
         "Ein Betroffener hat 22000 CHF verloren, sein Büro war an der Feldbärgstrasse in Basel.",
     ),
-    ("SPEAKER_02", "Dazu eine kurze Frage: Ist der Bericht zum Dropshipping schon fertig?"),
+    ("SPEAKER_02", "Dazu eine kurze Frage: Ist der Bericht zur Cloudmigration schon fertig?"),
     ("SPEAKER_01", "Ja, der ist seit letzter Woche fertig."),
     ("SPEAKER_00", "Danke Anna. Dann kommen wir zum nächsten Punkt."),
 ]
@@ -94,8 +94,8 @@ async def test_post_processing_assigns_names_and_unifies_variants():
     full_text = " ".join(segment.text for segment in segments)
 
     # Dominant variant wins everywhere.
-    assert "Jobshipping" not in full_text
-    assert "Dropshipping" in segments[3].text
+    assert "Cloudmigrazion" not in full_text
+    assert "Cloudmigration" in segments[3].text
 
     # Untouched content stays verbatim.
     assert segments[0].text == FIXTURE_SEGMENTS[0].text

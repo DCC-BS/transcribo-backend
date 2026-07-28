@@ -40,6 +40,5 @@ class Container(containers.DeclarativeContainer):
 
     transcript_postprocessing_service: providers.Singleton[TranscriptPostProcessingService] = providers.Singleton(
         TranscriptPostProcessingService,
-        app_config=app_config,
         transcript_postprocessing_agent=transcript_postprocessing_agent,
     )

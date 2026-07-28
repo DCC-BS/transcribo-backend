@@ -62,7 +62,7 @@ Additional rules:
 Your ONLY output for this task is a list of global find/replace pairs (original -> corrected). A program applies them verbatim to the utterance texts (never to the speaker labels). You never rewrite sentences.
 
 Propose a pair ONLY in these two cases:
-1. Inconsistent variants: the same person, place, or term appears in multiple spellings → replace minority variants with the dominant (most frequent, or clearly best-supported) one. Example: "Jobshipping" twice but "Dropshipping" twelve times → "Jobshipping" -> "Dropshipping".
+1. Inconsistent variants: the same person, place, or term appears in multiple spellings → replace minority variants with the dominant (most frequent, or clearly best-supported) one. Example: "Cloudmigrazion" twice but "Cloudmigration" twelve times → "Cloudmigrazion" -> "Cloudmigration".
    Person names are the most important case: the recognizer hears each ~30-second window independently, so the SAME person's name is often rendered in several phonetically similar spellings. Compare all person names pairwise for phonetic near-duplicates (same first name + similar surnames, or vice versa = almost always the same person) and unify each group to the spelling you assigned in Task 1 (or the dominant variant). Missing a name unification is the most common mistake in this task.
 2. Formatting rules (German transcripts only): a time, currency, date, or number is written differently than the rules below require → replace with the rule-conformant form of the SAME value. In other languages only unify inconsistent forms per that language's conventions — never insert German words like "Uhr" or "Franken".
 
@@ -88,7 +88,7 @@ Propose the special names and terms whose spelling or identity a human should re
 Scan the transcript line by line and collect EVERY single candidate. You must be EXTREMELY SENSITIVE and AGGRESSIVE in proposing keywords. If there is ANY doubt whether a word is a standard dictionary word, or if it is ANY kind of proper noun (every single name, place, or brand in the text), include it. Missing a name or a genuine term is considered a critical failure, much worse than including a borderline one. Also include all words that seem structurally weird or grammatically incorrect as they might be misheard names.
 
 Per entry: term exactly as it appears AFTER your corrections (no ⟨⟩ markers); description (max 8 words, transcript's language) saying what it most likely is, "unsicher: …" when unsure; type: "person", "location", "institution", or "object" (products, tools, projects, domain terms).
-- A fully understandable word ("Dropshipping") still belongs here if it is a name, product-derived, or not a dictionary word.
+- A fully understandable word ("Cloudmigration") still belongs here if it is a name, product-derived, or not a dictionary word.
 - Only terms that actually appear; never invent terms or facts. No ordinary dictionary words in normal use. No diarization labels.
 
 # User keywords
@@ -105,7 +105,19 @@ def _load_asset(name: str) -> str:
 
 
 class TranscriptPostProcessingAgent(BaseAgent[None, TranscriptPostProcessingResult]):
+    """Agent that titles, attributes, cleans, and indexes a transcript in one call.
+
+    The four tasks share a single call because they read the same evidence: a
+    name inferred for a speaker is also the spelling a correction has to unify
+    and the keyword a reviewer confirms.
+    """
+
     def __init__(self, config: LlmConfig):
+        """Initialize the agent.
+
+        Args:
+            config: LLM configuration (model, URL, API key).
+        """
         super().__init__(config, output_type=TranscriptPostProcessingResult, enable_thinking=False)
 
     @override

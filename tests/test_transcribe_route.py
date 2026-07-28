@@ -97,9 +97,9 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
             Segment(
                 start=0.0,
                 end=1.5,
-                text="Dropshipping ist toll.",
+                text="Cloudmigration ist toll.",
                 speaker="A",
-                words=[Word(start=0.0, end=0.7, word=" Dropshipping", probability=0.2)],
+                words=[Word(start=0.0, end=0.7, word=" Cloudmigration", probability=0.2)],
             ),
             Segment(start=1.5, end=3.0, text="Genau.", speaker="B", words=None),
         ]
@@ -110,10 +110,10 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
     postprocessing_service.post_process = AsyncMock(
         return_value=IOSuccess(
             TranscriptPostProcessingResult(
-                title="Gespräch über Dropshipping",
+                title="Gespräch über Cloudmigration",
                 speaker_assignments=[],
                 corrections=[
-                    TranscriptCorrection(original="Jobshipping", corrected="Dropshipping", confidence=0.9),
+                    TranscriptCorrection(original="Cloudmigrazion", corrected="Cloudmigration", confidence=0.9),
                 ],
                 keywords=[],
             )
@@ -131,8 +131,8 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
     # Internal word-level data never reaches the client — not even as a key.
     assert all("words" not in s for s in body["segments"])
     # Cleanup output rides along in separate fields.
-    assert body["applied_corrections"][0]["original"] == "Jobshipping"
-    assert body["title"] == "Gespräch über Dropshipping"
+    assert body["applied_corrections"][0]["original"] == "Cloudmigrazion"
+    assert body["title"] == "Gespräch über Cloudmigration"
 
 
 def test_task_result_survives_postprocessing_failure():

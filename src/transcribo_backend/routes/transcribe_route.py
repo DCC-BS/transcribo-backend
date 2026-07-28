@@ -102,7 +102,7 @@ def create_router(  # noqa: C901
             transcription.speaker_assignments = result_value.speaker_assignments
             transcription.keywords = result_value.keywords
         else:
-            logger.warning("Transcript post-processing failed for %s", task_id, exc_info=post.failure()._inner_value)
+            logger.warning("Transcript post-processing failed", task_id=task_id, exc_info=post.failure()._inner_value)
 
         return transcription
 

@@ -10,18 +10,18 @@ class SpeakerNameAssignment(BaseModel):
     # introduced — in the agent instructions.
     speaker: str = Field(..., description="Diarization label as it appears in the transcript, e.g. 'Speaker_00'.")
     name: str | None = Field(
-        None,
+        default=None,
         description="Real name of this speaker, exactly as written in the transcript. None when no textual evidence exists.",
     )
     role: str | None = Field(
-        None,
+        default=None,
         description="Speaker's role or function if the transcript makes it clear (e.g. 'Dolmetscher', 'Moderatorin'). None when unclear.",
     )
     confidence: float = Field(
         ..., ge=0.0, le=1.0, description="How certain the assignment is, 1.0 = explicit self-introduction."
     )
     evidence: str | None = Field(
-        None, description="Short verbatim quote from the transcript that justifies the name or role."
+        default=None, description="Short verbatim quote from the transcript that justifies the name or role."
     )
 
     model_config = ConfigDict(extra="forbid")
