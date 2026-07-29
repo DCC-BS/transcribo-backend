@@ -13,7 +13,7 @@ env:
 
 jobs:
   backend-ci:
-    uses: DCC-BS/ci-workflows/.github/workflows/python-backend-ci.yml@b522a713e5f9efc19b715d0d4938f37531db7f0d # v8.1
+    uses: DCC-BS/ci-workflows/.github/workflows/python-backend-ci.yml@6d1cca8023e197f6e9cda5e64f3b3f0448f4cf6e # v9
     with:
       python_versions: '["3.10","3.11","3.12","3.13"]'
       quality_python_version: "3.12"

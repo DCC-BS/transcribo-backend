@@ -71,7 +71,7 @@ def convert_to_mp3(input_path: str) -> str:
     """
     try:
         input_size_mb = Path(input_path).stat().st_size / (1024 * 1024)
-        logger.info(f"Starting FFmpeg audio conversion, file size: {input_size_mb:.1f}MB")
+        logger.debug("Starting FFmpeg audio conversion", input_size_mb=round(input_size_mb, 1))
 
         # Create the output temp file (closed immediately; ffmpeg writes to its path).
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as output_temp:
@@ -94,7 +94,7 @@ def convert_to_mp3(input_path: str) -> str:
             output_path,
         ]
 
-        logger.info("Running FFmpeg conversion with balanced quality (64k bitrate)")
+        logger.debug("Running FFmpeg conversion with balanced quality (64k bitrate)")
 
         # Run FFmpeg
         result = subprocess.run(  # noqa: S603
@@ -106,14 +106,16 @@ def convert_to_mp3(input_path: str) -> str:
 
         if result.returncode != 0:
             error_msg = result.stderr or "Unknown FFmpeg error"
-            logger.error(f"FFmpeg conversion failed: {error_msg}")
+            logger.error("FFmpeg conversion failed", returncode=result.returncode, stderr=error_msg)
             Path(output_path).unlink(missing_ok=True)
             raise AudioConversionError(error_msg)
 
         output_size_mb = Path(output_path).stat().st_size / (1024 * 1024)
         compression_ratio = input_size_mb / output_size_mb if output_size_mb > 0 else 0
-        logger.info(
-            f"FFmpeg conversion completed. Output size: {output_size_mb:.1f}MB (compression ratio: {compression_ratio:.1f}x)"
+        logger.debug(
+            "FFmpeg conversion completed",
+            output_size_mb=round(output_size_mb, 1),
+            compression_ratio=round(compression_ratio, 1),
         )
     except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
         logger.exception("FFmpeg subprocess error")

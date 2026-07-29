@@ -21,7 +21,7 @@ def create_router(
     usage_tracking_service: UsageTrackingService = Provide[Container.usage_tracking_service],
 ) -> APIRouter:
     """Create the router for the summarize endpoint."""
-    logger.info("Creating router for summarize endpoint")
+    logger.debug("Creating router for summarize endpoint")
     router = APIRouter()
 
     @router.post("/summarize")
@@ -57,7 +57,7 @@ def create_router(
             return result.unwrap()._inner_value
 
         error = result.failure()._inner_value
-        logger.exception("Failed to summarize transcript", exc_info=error)
+        logger.exception("Failed to summarize transcript", exc_info=error, transcript_length=len(request.transcript))
         raise api_error_exception(
             errorId=ApiErrorCodes.UNEXPECTED_ERROR,
             status=HTTPStatus.INTERNAL_SERVER_ERROR,

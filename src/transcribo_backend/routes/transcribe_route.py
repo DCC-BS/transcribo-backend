@@ -38,16 +38,18 @@ def create_router(  # noqa: C901
     Create the router for the transcription API.
     """
     logger = get_logger(__name__)
-    logger.info("Creating transcription router")
+    logger.debug("Creating transcription router")
     router = APIRouter()
 
-    def _unwrap_or_raise(result: Any, *, log_message: str, not_found_message: str, error_message: str) -> Any:
+    def _unwrap_or_raise(
+        result: Any, *, log_message: str, not_found_message: str, error_message: str, **log_context: Any
+    ) -> Any:
         """Return the value of a successful IOResult, or raise the mapped API error."""
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
         error = result.failure()._inner_value
-        logger.exception(log_message, exc_info=error)
+        logger.exception(log_message, exc_info=error, **log_context)
         if _is_not_found_error(error):
             raise api_error_exception(
                 errorId=ApiErrorCodes.RESOURCE_NOT_FOUND,
@@ -69,9 +71,10 @@ def create_router(  # noqa: C901
         result = await whisper_service.transcribe_get_task_status(task_id)
         return _unwrap_or_raise(
             result,
-            log_message=f"Failed to get task status for {task_id}",
+            log_message="Failed to get task status",
             not_found_message=f"Task {task_id} not found",
             error_message="Failed to get task status",
+            task_id=task_id,
         )
 
     @router.post("/task/{task_id}/result")
@@ -84,9 +87,10 @@ def create_router(  # noqa: C901
         result = await whisper_service.transcribe_get_task_result(task_id)
         transcription: TranscriptionResponse = _unwrap_or_raise(
             result,
-            log_message=f"Failed to get task result for {task_id}",
+            log_message="Failed to get task result",
             not_found_message=f"Task result for {task_id} not found",
             error_message="Failed to get task result",
+            task_id=task_id,
         )
 
         # LLM post-processing (cleanup, keywords, speaker names). The
@@ -173,7 +177,7 @@ def create_router(  # noqa: C901
         # can fail with rate-limit (429) and oversized-upload (413) HTTPExceptions that need
         # distinct user-facing messages; the other endpoints only surface generic failures.
         error = result.failure()._inner_value
-        logger.exception("Failed to submit transcription task", exc_info=error)
+        logger.exception("Failed to submit transcription task", exc_info=error, filename=audio_file.filename)
 
         status_code = HTTPStatus.INTERNAL_SERVER_ERROR
         error_code = ApiErrorCodes.UNEXPECTED_ERROR

@@ -41,7 +41,7 @@ docker-logs:
 .PHONY: run
 run: ## Run the application
 	@echo "🚀 Running the application"
-	@./scripts/run-varlock.sh run -- uv run fastapi run ./src/transcribo_backend/app.py --port 8000
+	@./scripts/run-varlock.sh run -- uv run uvicorn transcribo_backend.app:app --port 8000 --no-access-log
 
 .PHONY: dev
 dev: ## Run the application in development mode

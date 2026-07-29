@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ResponseFormat(str, Enum):
+class ResponseFormat(StrEnum):
     """
     Enum representing the possible response formats for whisper transcription.
 

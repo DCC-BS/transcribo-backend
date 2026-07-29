@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from dcc_backend_common.fastapi_error_handling import inject_api_error_handler
 from dcc_backend_common.fastapi_health_probes import health_probe_router
 from dcc_backend_common.fastapi_health_probes.router import ServiceDependency
+from dcc_backend_common.fastapi_logging_middleware import add_logging_middleware
 from dcc_backend_common.logger import get_logger, init_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,7 +74,7 @@ def _configure_container(app: FastAPI, logger: BoundLogger) -> Container:
     container = Container()
     container.wire(modules=[transcribe_route, summarize_route])
     container.check_dependencies()
-    logger.info("Dependency injection configured")
+    logger.debug("Dependency injection configured")
     app.state.container = container
     return container
 
@@ -85,7 +86,7 @@ def _register_routes(app: FastAPI, logger: BoundLogger) -> None:
     logger.debug("Registering API routers")
     app.include_router(summarize_route.create_router())
     app.include_router(transcribe_route.create_router())
-    logger.info("All routers registered")
+    logger.debug("All routers registered")
 
 
 def _configure_cors(app: FastAPI, client_url: str, logger: BoundLogger) -> None:
@@ -101,7 +102,7 @@ def _configure_cors(app: FastAPI, client_url: str, logger: BoundLogger) -> None:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.info(f"CORS configured with origin: {client_url}")
+    logger.debug("CORS configured", origin=client_url)
 
 
 def create_app() -> FastAPI:
@@ -135,6 +136,7 @@ def create_app() -> FastAPI:
     _register_health_routes(app=app, config=config)
 
     _configure_cors(app=app, client_url=config.client_url, logger=logger)
+    add_logging_middleware(app)
     _register_routes(app=app, logger=logger)
 
     logger.info("API setup complete")
