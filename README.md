@@ -19,6 +19,8 @@ Transcribo Backend is a powerful Python FastAPI service that provides advanced a
 - **Speaker Diarization**: Identify and separate different speakers in recordings
 - **Language Detection**: Automatic language detection or specify the source language
 - **AI Summarization**: Generate intelligent summaries of transcribed text using LLMs
+- **Speaker Inference**: Infer the speaker names from the context of the transcription
+- **Title Inference**: Generate intelligent titles from the context of the transcription
 - **Asynchronous Processing**: Task-based processing with status tracking for long-running transcriptions
 - **Multi-format Support**: Handle various audio formats (MP3, WAV, etc.) and video files
 - **Audio Conversion**: Automatic conversion to MP3 format for optimal processing
