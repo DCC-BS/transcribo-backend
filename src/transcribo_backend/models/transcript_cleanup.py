@@ -1,3 +1,5 @@
+"""Correction pairs proposed for a transcript."""
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

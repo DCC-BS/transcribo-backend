@@ -1,3 +1,5 @@
+"""User-facing keyword vocabulary extracted from a transcript."""
+
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field

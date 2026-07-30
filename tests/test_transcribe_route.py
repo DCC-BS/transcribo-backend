@@ -43,6 +43,7 @@ def _make_services(max_upload_bytes: int = 50 * 1024 * 1024):
 
 
 def test_rejects_unsupported_content_type():
+    """A non-audio, non-video content type is rejected before any work happens."""
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 
@@ -53,6 +54,7 @@ def test_rejects_unsupported_content_type():
 
 
 def test_rejects_oversized_upload():
+    """An upload above the configured cap is rejected with 413."""
     whisper_service, usage_service = _make_services(max_upload_bytes=8)
     client = _build_client(whisper_service, usage_service)
 
@@ -65,6 +67,7 @@ def test_rejects_oversized_upload():
 
 
 def test_valid_upload_is_forwarded_to_service():
+    """A valid upload reaches WhisperService with the request's parameters."""
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 
@@ -158,6 +161,7 @@ def test_task_result_survives_postprocessing_failure():
 
 
 def test_happy_path_logs_usage():
+    """A successful submit records exactly one usage event."""
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 

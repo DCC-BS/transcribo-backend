@@ -1,3 +1,5 @@
+"""Response formats supported by the Whisper backend."""
+
 from enum import StrEnum
 
 

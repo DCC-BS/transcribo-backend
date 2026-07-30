@@ -1,3 +1,5 @@
+"""ffmpeg-based audio normalization for uploads."""
+
 import subprocess
 import tempfile
 from pathlib import Path

@@ -1,3 +1,5 @@
+"""LLM agent performing all transcript post-processing tasks in one call."""
+
 from pathlib import Path
 from typing import override
 
@@ -101,6 +103,7 @@ The user prompt may contain a "User keywords" section with entries in the form "
 
 
 def _load_asset(name: str) -> str:
+    """Read a prompt asset from the assets directory."""
     return (_ASSETS_DIR / name).read_text(encoding="utf-8")
 
 
@@ -122,6 +125,7 @@ class TranscriptPostProcessingAgent(BaseAgent[None, TranscriptPostProcessingResu
 
     @override
     def create_agent(self, model: Model) -> Agent[None, TranscriptPostProcessingResult]:
+        """Build the pydantic-ai agent with the post-processing instructions."""
         instructions = TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS.format(
             rules=_load_asset("transcript_rules.md"),
         )
@@ -129,5 +133,7 @@ class TranscriptPostProcessingAgent(BaseAgent[None, TranscriptPostProcessingResu
             model=model,
             output_type=TranscriptPostProcessingResult,
             instructions=instructions,
+            # No timeout here: BaseAgent applies LlmConfig.llm_timeout to every run, so
+            # repeating it would shadow the env-configurable value with a literal.
             model_settings={"temperature": 0.0},
         )

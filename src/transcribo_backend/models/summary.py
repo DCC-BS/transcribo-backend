@@ -1,3 +1,5 @@
+"""Request and response models of the summarization endpoint."""
+
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field

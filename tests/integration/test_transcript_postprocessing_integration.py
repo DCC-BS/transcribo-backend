@@ -69,6 +69,7 @@ FIXTURE_SEGMENTS = [
 
 
 async def test_post_processing_assigns_names_and_unifies_variants():
+    """End-to-end: the agent names speakers and unifies spelling variants."""
     service = _make_service()
 
     segments = [segment.model_copy(deep=True) for segment in FIXTURE_SEGMENTS]

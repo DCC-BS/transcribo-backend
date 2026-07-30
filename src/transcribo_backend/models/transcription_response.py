@@ -1,3 +1,5 @@
+"""Request and response models of the transcription endpoints."""
+
 from pydantic import BaseModel, Field
 
 from transcribo_backend.models.keywords import Keyword
@@ -8,10 +10,15 @@ from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 class TaskResultRequest(BaseModel):
     """Request for a task result, carrying the user's confirmed vocabulary."""
 
-    keywords: list[Keyword] = Field(default_factory=list)
+    # Bounded: the vocabulary is client-supplied and every entry is compared against
+    # every inferred speaker name, so an unbounded list is a cheap way to make the
+    # request expensive. Far above any realistic user vocabulary.
+    keywords: list[Keyword] = Field(default_factory=list, max_length=500)
 
 
 class Word(BaseModel):
+    """A single recognized word with its timing and recognition probability."""
+
     start: float
     end: float
     word: str
@@ -20,6 +27,8 @@ class Word(BaseModel):
 
 
 class Segment(BaseModel):
+    """One diarized utterance of the transcript."""
+
     start: float
     end: float
     text: str
@@ -29,6 +38,8 @@ class Segment(BaseModel):
 
 
 class TranscriptionResponse(BaseModel):
+    """A finished transcription plus whatever post-processing could derive from it."""
+
     segments: list[Segment]
     # Concise title inferred from the transcript. None when post-processing
     # failed or the topic was too ambiguous.

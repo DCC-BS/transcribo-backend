@@ -1,3 +1,5 @@
+"""Mapping of diarization labels to inferred speaker names and roles."""
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -11,7 +13,10 @@ class SpeakerNameAssignment(BaseModel):
     speaker: str = Field(..., description="Diarization label as it appears in the transcript, e.g. 'Speaker_00'.")
     name: str | None = Field(
         default=None,
-        description="Real name of this speaker, exactly as written in the transcript. None when no textual evidence exists.",
+        description=(
+            "Real name of this speaker, as written in the transcript or in the authoritative "
+            "spelling of a matching user keyword. None when no textual evidence exists."
+        ),
     )
     role: str | None = Field(
         default=None,
@@ -29,7 +34,7 @@ class SpeakerNameAssignment(BaseModel):
     @field_validator("name", "role", "evidence", mode="before")
     @classmethod
     def _none_literals_to_none(cls, value: object) -> object:
-        # Smaller LLMs sometimes emit the string "null"/"none" instead of JSON null.
+        """Normalize the "null"/"none"/"unknown" strings smaller LLMs emit instead of JSON null."""
         if isinstance(value, str) and value.strip().lower() in {"", "null", "none", "unknown"}:
             return None
         return value

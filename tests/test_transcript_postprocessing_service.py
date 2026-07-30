@@ -1,7 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import ValidationError
 
 from transcribo_backend.agents.transcript_postprocessing_agent import TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS
 from transcribo_backend.models.keywords import Keyword
@@ -10,10 +9,13 @@ from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment, Word
 from transcribo_backend.services.transcript_postprocessing_service import (
+    _MAX_KEYWORDS_CHARS,
+    _MAX_TRANSCRIPT_CHARS,
     TranscriptPostProcessingService,
     apply_corrections,
     apply_corrections_to_names,
     apply_keyword_spellings_to_names,
+    build_postprocessing_prompt,
     build_postprocessing_transcript,
     decode_speaker_labels,
     encode_speaker_label,
@@ -28,6 +30,11 @@ def _word(token: str, probability: float) -> Word:
 def _empty_result() -> TranscriptPostProcessingResult:
     """An agent result that proposes nothing — for tests that only assert on the prompt."""
     return TranscriptPostProcessingResult(title=None, speaker_assignments=[], corrections=[], keywords=[])
+
+
+def _result_with_title(title: str) -> TranscriptPostProcessingResult:
+    """An otherwise empty agent result carrying ``title``."""
+    return TranscriptPostProcessingResult(title=title, speaker_assignments=[], corrections=[], keywords=[])
 
 
 def _make_service(
@@ -45,15 +52,15 @@ def _make_service(
 
 
 def test_postprocessing_title_contract_is_short():
+    """The title contract in the prompt is also enforced on the parsed result."""
     assert "Use 3-6 words and no more than 60 characters." in TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS
 
-    with pytest.raises(ValidationError):
-        TranscriptPostProcessingResult(
-            title="x" * 61,
-            speaker_assignments=[],
-            corrections=[],
-            keywords=[],
-        )
+    # Off-contract titles are dropped, not rejected.
+    assert _result_with_title("x" * 61).title is None
+    assert _result_with_title("Cloudmigration").title is None
+    assert _result_with_title("Dies ist ein deutlich zu langer Titel mit Nebensatz").title is None
+    # A conforming title is kept, stripped.
+    assert _result_with_title("  Cloudmigration im Gespräch  ").title == "Cloudmigration im Gespräch"
 
 
 def test_encode_speaker_label_round_trip():
@@ -106,6 +113,7 @@ def test_decode_speaker_labels_never_invents_a_label():
 
 
 def test_build_transcript_merges_speakers():
+    """Consecutive turns of one speaker become a single prompt line."""
     segments = [
         Segment(start=0.0, end=1.0, text=" Hallo zusammen. ", speaker="Speaker_00"),
         Segment(start=1.0, end=2.0, text="Wir reden über Cloudmigrazion.", speaker="Speaker_00"),
@@ -122,6 +130,7 @@ def test_build_transcript_merges_speakers():
 
 
 def test_build_transcript_clamp_keeps_head_and_tail():
+    """Clamping keeps both ends of the transcript, eliding the middle."""
     segments = [
         Segment(start=0.0, end=1.0, text="a" * 20, speaker="S0"),
         Segment(start=1.0, end=2.0, text="b" * 20, speaker="S1"),
@@ -136,6 +145,7 @@ def test_build_transcript_clamp_keeps_head_and_tail():
 
 
 def test_build_transcript_marks_uncertain_words():
+    """Only long, low-probability words are marked as correction candidates."""
     segments = [
         Segment(
             start=0.0,
@@ -164,6 +174,7 @@ def test_build_transcript_marks_uncertain_words():
 
 
 def test_apply_corrections_word_boundary_and_threshold():
+    """Corrections apply on word boundaries only and below the threshold not at all."""
     segments = [
         Segment(start=0.0, end=1.0, text="Cloudmigrazion ist toll.", speaker="A"),
         Segment(start=1.0, end=2.0, text="Alles über Cloudmigrazion, auch Cloudmigrazionkurse.", speaker="B"),
@@ -250,6 +261,7 @@ def test_apply_corrections_formats_phone_email_and_serial():
 
 
 def test_apply_keyword_spellings_snaps_close_names():
+    """Inferred names snap to the confirmed spelling of a close person keyword."""
     assignments = [
         SpeakerNameAssignment(speaker="A", name="Lena Feldman", confidence=0.9),
         SpeakerNameAssignment(speaker="B", name="Petra Muster", confidence=0.9),
@@ -266,6 +278,7 @@ def test_apply_keyword_spellings_snaps_close_names():
 
 
 def test_apply_corrections_to_names():
+    """Applied text corrections follow through to the inferred speaker names."""
     assignments = [
         SpeakerNameAssignment(speaker="A", name="Pete Maier", confidence=0.9),
         SpeakerNameAssignment(speaker="B", name=None, role="Reporter", confidence=0.7),
@@ -281,6 +294,7 @@ def test_apply_corrections_to_names():
 
 
 def test_enumerate_roles_numbers_only_nameless_duplicates():
+    """Only nameless speakers sharing a role get numbered."""
     assignments = [
         SpeakerNameAssignment(speaker="A", name="Anna", role="Dolmetscher", confidence=0.9),
         SpeakerNameAssignment(speaker="B", name=None, role="Dolmetscher", confidence=0.6),
@@ -301,6 +315,7 @@ def test_enumerate_roles_numbers_only_nameless_duplicates():
 
 @pytest.mark.anyio
 async def test_post_process_single_call_returns_all():
+    """One agent call yields title, speakers, corrections, and keywords."""
     assignments = [
         SpeakerNameAssignment(speaker="A", name="Anna", confidence=0.9, evidence="Ich bin Anna."),
     ]
@@ -391,6 +406,7 @@ async def test_post_process_never_changes_segment_count_timestamps_or_words():
 
 @pytest.mark.anyio
 async def test_post_process_propagates_agent_failure():
+    """An agent error surfaces as an IOFailure instead of raising."""
     service, _ = _make_service(side_effect=RuntimeError("llm down"))
 
     result_io = await service.post_process([Segment(start=0.0, end=1.0, text="Hallo.", speaker="A")])
@@ -402,6 +418,7 @@ async def test_post_process_propagates_agent_failure():
 
 @pytest.mark.anyio
 async def test_post_process_appends_user_keywords_to_prompt():
+    """Confirmed keywords are rendered into the prompt as authoritative spellings."""
     service, agent = _make_service()
     segments = [Segment(start=0.0, end=1.0, text="Die Beta Kliniken.", speaker="A")]
     keywords = [Keyword(term="Vita Kliniken", description="Name der Klinikgruppe", type="institution")]
@@ -423,3 +440,20 @@ def test_apply_keyword_spellings_picks_the_closest_term():
     apply_keyword_spellings_to_names(assignments, keywords)
 
     assert assignments[0].name == "Lena Feldmann"
+
+
+def test_build_prompt_keeps_the_whole_prompt_within_budget():
+    """A large confirmed vocabulary must not push the prompt past the transcript budget."""
+    # Alternating labels, so the transcript is many lines the clamp can choose from,
+    # and long enough to overflow the budget on its own.
+    segments = [Segment(start=float(i), end=float(i + 1), text="x" * 1_000, speaker=f"S{i % 2}") for i in range(200)]
+    keywords = [Keyword(term=f"Term{i}", description="x" * 200, type="object") for i in range(100)]
+
+    prompt = build_postprocessing_prompt(segments, keywords)
+
+    transcript, _, section = prompt.partition("\n\nUser keywords:\n")
+    assert len(prompt) <= _MAX_TRANSCRIPT_CHARS
+    # The keyword section is capped, and the transcript still gets the bulk of the budget —
+    # so keywords can neither overflow the prompt nor starve the transcript.
+    assert len(section) <= _MAX_KEYWORDS_CHARS
+    assert len(transcript) > _MAX_TRANSCRIPT_CHARS * 0.9

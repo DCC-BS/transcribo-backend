@@ -1,3 +1,5 @@
+"""Dependency injection container wiring config, agents, and services."""
+
 from dcc_backend_common.usage_tracking import UsageTrackingService
 from dependency_injector import containers, providers
 
@@ -10,6 +12,12 @@ from transcribo_backend.utils.app_config import AppConfig
 
 
 class Container(containers.DeclarativeContainer):
+    """Providers for the app's config, agents, and services.
+
+    ``AppConfig.from_env()`` runs at import time of this module, so importing it
+    requires a populated environment.
+    """
+
     app_config: providers.Object[AppConfig] = providers.Object(AppConfig.from_env())
 
     usage_tracking_service: providers.Singleton[UsageTrackingService] = providers.Singleton(

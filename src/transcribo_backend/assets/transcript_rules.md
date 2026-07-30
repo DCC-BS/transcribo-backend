@@ -1,9 +1,9 @@
 # Transcript formatting rules
 
-These rules are loaded into the transcript-cleanup agent's instructions.
+These rules are loaded into the transcript post-processing agent's instructions.
 
-Note: the rules below are written for German transcripts. The cleanup agent
-is instructed to apply them only when the transcript is German.
+Note: the rules below are written for German transcripts. The post-processing
+agent is instructed to apply them only when the transcript is German.
 Edit this file to change how normalized entities are written; the agent only
 applies a rule when the affected value is already present in the transcript —
 rules never add information.

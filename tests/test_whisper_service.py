@@ -17,6 +17,7 @@ from io import BytesIO
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from fastapi import HTTPException, UploadFile
 from returns.io import IOFailure, IOSuccess
@@ -64,6 +65,7 @@ def _capturing_post(captured: dict):
 
 @pytest.mark.anyio
 async def test_submit_streams_mp3_as_file_handle_without_conversion():
+    """An MP3 upload is forwarded as a file handle and skips ffmpeg."""
     svc = _make_service()
     captured: dict = {}
     svc.client.post = _capturing_post(captured)
@@ -89,6 +91,7 @@ async def test_submit_streams_mp3_as_file_handle_without_conversion():
 
 @pytest.mark.anyio
 async def test_submit_converts_non_mp3_and_cleans_up_temp_file():
+    """A non-MP3 upload is converted and both temp files are removed."""
     svc = _make_service()
     captured: dict = {}
     svc.client.post = _capturing_post(captured)
@@ -121,6 +124,7 @@ async def test_submit_converts_non_mp3_and_cleans_up_temp_file():
 
 @pytest.mark.anyio
 async def test_submit_rejects_oversized_upload_before_sending():
+    """The size cap is enforced while streaming, before any request is sent."""
     svc = _make_service(max_upload_bytes=8)
     svc.client.post = cast(Any, AsyncMock())
 
@@ -185,5 +189,23 @@ async def test_get_task_result_returns_normalized_transcription():
     assert transcription.segments[1].words is None
     # Completed result is evicted from the progress cache.
     assert "task-1" not in svc.taskId_to_progressId
+
+    await svc.aclose()
+
+
+@pytest.mark.anyio
+async def test_get_task_status_surfaces_404_as_failure():
+    """A 404 must stay an error so the route can answer "Task not found"."""
+    svc = _make_service()
+
+    request = httpx.Request("GET", "http://whisper.test/status")
+    svc.client.get = cast(Any, AsyncMock(return_value=httpx.Response(404, request=request)))
+
+    result = await svc.transcribe_get_task_status("task-1")
+
+    assert isinstance(result, IOFailure), result
+    error = result.failure()._inner_value
+    assert isinstance(error, httpx.HTTPStatusError)
+    assert error.response.status_code == 404
 
     await svc.aclose()

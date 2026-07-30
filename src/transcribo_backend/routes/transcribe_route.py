@@ -1,3 +1,5 @@
+"""Transcription API routes: submit, status, result, retry, cancel."""
+
 from http import HTTPStatus
 from typing import Annotated, Any
 

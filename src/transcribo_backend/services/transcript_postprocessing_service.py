@@ -1,3 +1,5 @@
+"""Post-processing of a transcript: title, speaker names, corrections, keywords."""
+
 import re
 from collections import Counter
 from collections.abc import Iterable
@@ -14,6 +16,11 @@ from transcribo_backend.models.transcription_response import Segment
 
 # Same bound as the summarize endpoint, keeps the LLM call within context.
 _MAX_TRANSCRIPT_CHARS = 32_000 * 4
+
+# Hard cap on the user keyword section, so a large confirmed vocabulary can neither
+# overflow the context window nor starve the transcript of budget. Generous: a realistic
+# vocabulary of a few hundred "term: description" lines fits well inside it.
+_MAX_KEYWORDS_CHARS = 8_000
 
 # Share of the clamp budget reserved for the transcript tail: name evidence
 # clusters at both ends of a conversation — introductions at the start,
@@ -295,6 +302,22 @@ def render_keywords(keywords: list[Keyword] | None) -> list[str]:
     return [f"{entry.term}: {entry.description}" for entry in keywords or []]
 
 
+def build_postprocessing_prompt(segments: list[Segment], keywords: list[Keyword] | None = None) -> str:
+    """Render the full post-processing prompt: transcript plus user keyword section.
+
+    Owns the ``_MAX_TRANSCRIPT_CHARS`` budget for the whole prompt, so the bound holds
+    however many sections the prompt grows. The keyword section is client-supplied: it
+    is capped first and its cost subtracted from the transcript budget, because appended
+    unbounded it could push the prompt past the model's context window.
+    """
+    keyword_lines, _ = _take_lines_within(render_keywords(keywords), _MAX_KEYWORDS_CHARS)
+    keywords_section = "\n\nUser keywords:\n" + "\n".join(keyword_lines) if keyword_lines else ""
+    transcript = build_postprocessing_transcript(
+        segments, max_chars=_MAX_TRANSCRIPT_CHARS - len(keywords_section), mark_uncertain=True
+    )
+    return transcript + keywords_section
+
+
 class TranscriptPostProcessingService:
     """Runs the post-processing agent over a transcript and applies its output.
 
@@ -330,11 +353,7 @@ class TranscriptPostProcessingService:
         inferred title, applied corrections, speaker assignments, and proposed
         keywords.
         """
-        keywords_section = ""
-        if keywords:
-            keywords_section = "\n\nUser keywords:\n" + "\n".join(render_keywords(keywords))
-
-        prompt = build_postprocessing_transcript(segments, mark_uncertain=True) + keywords_section
+        prompt = build_postprocessing_prompt(segments, keywords)
         result: TranscriptPostProcessingResult = await self.agent.run(prompt)
 
         # Undo the prompt-side label shortening immediately: everything below

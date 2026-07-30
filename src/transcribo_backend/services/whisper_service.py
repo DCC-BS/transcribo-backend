@@ -1,3 +1,5 @@
+"""Task-based proxy to the external Whisper transcription backend."""
+
 import asyncio
 import json
 import tempfile
@@ -14,7 +16,7 @@ from returns.pipeline import is_successful
 
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
-from transcribo_backend.models.task_status import TaskStatus, TaskStatusEnum
+from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
 from transcribo_backend.services.audio_converter import (
     convert_to_mp3,
@@ -30,7 +32,16 @@ _SNIFF_BYTES = 1024
 
 
 class WhisperService:
+    """Client for the external Whisper backend that owns the task lifecycle.
+
+    Attributes:
+        app_config: Application configuration (backend URL, API key, upload cap).
+        taskId_to_progressId: Task-to-progress mapping used to enrich status responses.
+        client: Long-lived HTTP client for the Whisper backend.
+    """
+
     def __init__(self, app_config: AppConfig) -> None:
+        """Initialize the service and its long-lived HTTP client."""
         self.app_config = app_config
         one_day = 60 * 60 * 24
         self.taskId_to_progressId: TTLCache[str, str] = TTLCache[str, str](maxsize=1024, ttl=one_day)
@@ -61,14 +72,15 @@ class WhisperService:
         """
         url = self._task_endpoint(f"status?task_id={task_id}")
 
-        # Whisper is the source of truth for the task itself. The in-memory
-        # progress mapping only enriches the status and may be gone (result
-        # already fetched once, or backend restart) while the task still exists.
+        # Whisper is the source of truth for the task itself, so a 404 must stay an
+        # error: the route maps it to "Task not found", which a synthetic FAILED status
+        # would hide (an unknown task and a failed transcription are not the same thing).
         response = await self.client.get(url)
-        if response.status_code == 404:
-            return TaskStatus(task_id=task_id, status=TaskStatusEnum.FAILED)
         response.raise_for_status()
 
+        # The in-memory progress mapping only enriches the status and may legitimately
+        # be gone (result already fetched once, or backend restart) while the task
+        # still exists — only this optional lookup tolerates a 404.
         progress: float | None = None
         progress_id = self.taskId_to_progressId.get(task_id)
         if progress_id is not None:
