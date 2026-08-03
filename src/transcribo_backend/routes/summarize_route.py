@@ -31,13 +31,13 @@ def create_router(
         """
         model_context_length = 32_000
 
-        if not request.transcript or not request.transcript.strip():
+        if not request.text or not request.text.strip():
             raise api_error_exception(
                 errorId=ApiErrorCodes.INVALID_REQUEST,
                 status=HTTPStatus.BAD_REQUEST,
                 debugMessage="Transcript cannot be empty",
             )
-        if len(request.transcript) > model_context_length * 4:
+        if len(request.text) > model_context_length * 4:
             raise api_error_exception(
                 errorId=ApiErrorCodes.INVALID_REQUEST,
                 status=HTTPStatus.BAD_REQUEST,
@@ -48,16 +48,16 @@ def create_router(
             module="summarize_route",
             func="summarize",
             user_id=x_client_id or "unknown",
-            transcript_length=len(request.transcript),
+            transcript_length=len(request.text),
         )
 
-        result = await summarization_service.summarize(request.transcript, request.summary_type, request.language)
+        result = await summarization_service.summarize(request.text, request.summary_type, request.language)
 
         if isinstance(result, IOSuccess):
             return result.unwrap()._inner_value
 
         error = result.failure()._inner_value
-        logger.exception("Failed to summarize transcript", exc_info=error, transcript_length=len(request.transcript))
+        logger.exception("Failed to summarize transcript", exc_info=error, transcript_length=len(request.text))
         raise api_error_exception(
             errorId=ApiErrorCodes.UNEXPECTED_ERROR,
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
