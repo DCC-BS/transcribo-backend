@@ -1,3 +1,5 @@
+"""ffmpeg-based audio normalization for uploads."""
+
 import subprocess
 import tempfile
 from pathlib import Path
@@ -13,6 +15,11 @@ class AudioConversionError(Exception):
 
     def __init__(self, error_message: str):
         super().__init__(f"FFmpeg conversion failed: {error_message}")
+
+
+def is_ogg_format(audio_data: bytes) -> bool:
+    """Check if the audio data is an Ogg container (e.g. Opus from the client)."""
+    return audio_data.startswith(b"OggS")
 
 
 def is_mp3_format(audio_data: bytes) -> bool:

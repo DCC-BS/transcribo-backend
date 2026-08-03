@@ -1,3 +1,5 @@
+"""FastAPI application factory for the transcribo backend."""
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 

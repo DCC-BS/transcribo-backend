@@ -15,16 +15,20 @@ from returns.io import IOSuccess
 from starlette.datastructures import UploadFile
 
 from transcribo_backend.models.task_status import TaskStatus
+from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
+from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
+from transcribo_backend.models.transcription_response import Segment, TranscriptionResponse, Word
 from transcribo_backend.routes import transcribe_route
 
 
-def _build_client(whisper_service, usage_service) -> TestClient:
+def _build_client(whisper_service, usage_service, postprocessing_service=None) -> TestClient:
     app = FastAPI()
     inject_api_error_handler(app)
     app.include_router(
         transcribe_route.create_router(
             whisper_service=whisper_service,
             usage_tracking_service=usage_service,
+            transcript_postprocessing_service=postprocessing_service or MagicMock(),
         )
     )
     return TestClient(app)
@@ -39,6 +43,7 @@ def _make_services(max_upload_bytes: int = 50 * 1024 * 1024):
 
 
 def test_rejects_unsupported_content_type():
+    """A non-audio, non-video content type is rejected before any work happens."""
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 
@@ -49,6 +54,7 @@ def test_rejects_unsupported_content_type():
 
 
 def test_rejects_oversized_upload():
+    """An upload above the configured cap is rejected with 413."""
     whisper_service, usage_service = _make_services(max_upload_bytes=8)
     client = _build_client(whisper_service, usage_service)
 
@@ -61,6 +67,7 @@ def test_rejects_oversized_upload():
 
 
 def test_valid_upload_is_forwarded_to_service():
+    """A valid upload reaches WhisperService with the request's parameters."""
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 
@@ -82,7 +89,79 @@ def test_valid_upload_is_forwarded_to_service():
     assert call.kwargs["language"] == "de"
 
 
+def test_task_result_preserves_fragments_and_never_leaks_word_level():
+    """The client contract is fragment level: segment count and start/end
+    timestamps reach the client exactly as the recognizer produced them,
+    independent of post-processing; cleanup output is attached as separate
+    fields; internal word-level data never appears in the response."""
+    whisper_service, usage_service = _make_services()
+    transcription = TranscriptionResponse(
+        segments=[
+            Segment(
+                start=0.0,
+                end=1.5,
+                text="Cloudmigration ist toll.",
+                speaker="A",
+                words=[Word(start=0.0, end=0.7, word=" Cloudmigration", probability=0.2)],
+            ),
+            Segment(start=1.5, end=3.0, text="Genau.", speaker="B", words=None),
+        ]
+    )
+    whisper_service.transcribe_get_task_result = AsyncMock(return_value=IOSuccess(transcription))
+
+    postprocessing_service = MagicMock()
+    postprocessing_service.post_process = AsyncMock(
+        return_value=IOSuccess(
+            TranscriptPostProcessingResult(
+                title="Gespräch über Cloudmigration",
+                speaker_assignments=[],
+                corrections=[
+                    TranscriptCorrection(original="Cloudmigrazion", corrected="Cloudmigration", confidence=0.9),
+                ],
+                keywords=[],
+            )
+        )
+    )
+
+    client = _build_client(whisper_service, usage_service, postprocessing_service)
+    resp = client.post("/task/task-1/result", json={})
+
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert len(body["segments"]) == 2
+    assert [(s["start"], s["end"]) for s in body["segments"]] == [(0.0, 1.5), (1.5, 3.0)]
+    # Internal word-level data never reaches the client — not even as a key.
+    assert all("words" not in s for s in body["segments"])
+    # Cleanup output rides along in separate fields.
+    assert body["applied_corrections"][0]["original"] == "Cloudmigrazion"
+    assert body["title"] == "Gespräch über Cloudmigration"
+
+
+def test_task_result_survives_postprocessing_failure():
+    """A failed cleanup must not block the transcription result."""
+    whisper_service, usage_service = _make_services()
+    transcription = TranscriptionResponse(segments=[Segment(start=0.0, end=1.0, text="Hallo.", speaker="A")])
+    whisper_service.transcribe_get_task_result = AsyncMock(return_value=IOSuccess(transcription))
+
+    postprocessing_service = MagicMock()
+    failing = MagicMock()
+    failing.failure.return_value._inner_value = RuntimeError("llm down")
+    postprocessing_service.post_process = AsyncMock(return_value=failing)
+
+    client = _build_client(whisper_service, usage_service, postprocessing_service)
+    resp = client.post("/task/task-1/result", json={})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["segments"]) == 1
+    assert body["speaker_assignments"] is None
+    assert body["applied_corrections"] is None
+    assert body["title"] is None
+
+
 def test_happy_path_logs_usage():
+    """A successful submit records exactly one usage event."""
     whisper_service, usage_service = _make_services()
     client = _build_client(whisper_service, usage_service)
 

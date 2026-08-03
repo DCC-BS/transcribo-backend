@@ -1,3 +1,5 @@
+"""Transcription API routes: submit, status, result, retry, cancel."""
+
 from http import HTTPStatus
 from typing import Annotated, Any
 
@@ -12,7 +14,8 @@ from returns.io import IOSuccess
 from transcribo_backend.container import Container
 from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
 from transcribo_backend.models.task_status import TaskStatus
-from transcribo_backend.models.transcription_response import TranscriptionResponse
+from transcribo_backend.models.transcription_response import TaskResultRequest, TranscriptionResponse
+from transcribo_backend.services.transcript_postprocessing_service import TranscriptPostProcessingService
 from transcribo_backend.services.whisper_service import WhisperService
 
 
@@ -29,6 +32,9 @@ def _is_not_found_error(error: Exception) -> bool:
 def create_router(  # noqa: C901
     whisper_service: WhisperService = Provide[Container.whisper_service],
     usage_tracking_service: UsageTrackingService = Provide[Container.usage_tracking_service],
+    transcript_postprocessing_service: TranscriptPostProcessingService = Provide[
+        Container.transcript_postprocessing_service
+    ],
 ) -> APIRouter:
     """
     Create the router for the transcription API.
@@ -73,19 +79,38 @@ def create_router(  # noqa: C901
             task_id=task_id,
         )
 
-    @router.get("/task/{task_id}/result")
-    async def get_task_result(task_id: str) -> TranscriptionResponse:
+    @router.post("/task/{task_id}/result")
+    async def get_task_result(task_id: str, request: TaskResultRequest) -> TranscriptionResponse:
         """
-        Endpoint to get the result of a task by task_id.
+        Endpoint to get the result of a task by task_id. The request carries
+        the user's confirmed vocabulary (from earlier transcriptions) so
+        post-processing can prefer those spellings.
         """
         result = await whisper_service.transcribe_get_task_result(task_id)
-        return _unwrap_or_raise(
+        transcription: TranscriptionResponse = _unwrap_or_raise(
             result,
             log_message="Failed to get task result",
             not_found_message=f"Task result for {task_id} not found",
             error_message="Failed to get task result",
             task_id=task_id,
         )
+
+        # LLM post-processing (cleanup, keywords, speaker names). The
+        # transcription is still valid without it, so a failure only logs a
+        # warning.
+        post = await transcript_postprocessing_service.post_process(
+            transcription.segments, keywords=request.keywords or None
+        )
+        if isinstance(post, IOSuccess):
+            result_value = post.unwrap()._inner_value
+            transcription.title = result_value.title
+            transcription.applied_corrections = result_value.corrections
+            transcription.speaker_assignments = result_value.speaker_assignments
+            transcription.keywords = result_value.keywords
+        else:
+            logger.warning("Transcript post-processing failed", task_id=task_id, exc_info=post.failure()._inner_value)
+
+        return transcription
 
     @router.post("/transcribe")
     async def submit_transcribe(

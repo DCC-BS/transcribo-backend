@@ -1,3 +1,5 @@
+"""Request and response models of the summarization endpoint."""
+
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,9 +27,9 @@ class SummaryRequest(BaseModel):
     """Request model for summarization endpoint."""
 
     transcript: str = Field(..., min_length=1, max_length=32_000 * 4, description="Transcript to summarize.")
-    summary_type: SummaryType | None = Field(None, description="Type of summary to generate.")
+    summary_type: SummaryType | None = Field(default=None, description="Type of summary to generate.")
     language: Language | None = Field(
-        None, description="Output language for summary. None = auto-detect from transcript."
+        default=None, description="Output language for summary. None = auto-detect from transcript."
     )
 
     model_config = ConfigDict(extra="forbid")

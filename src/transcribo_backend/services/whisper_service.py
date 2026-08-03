@@ -1,7 +1,10 @@
+"""Task-based proxy to the external Whisper transcription backend."""
+
 import asyncio
 import json
 import tempfile
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +16,12 @@ from returns.pipeline import is_successful
 
 from transcribo_backend.models.progress import ProgressResponse
 from transcribo_backend.models.response_format import ResponseFormat
-from transcribo_backend.models.task_status import TaskStatus, TaskStatusEnum
+from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcription_response import TranscriptionResponse
 from transcribo_backend.services.audio_converter import (
     convert_to_mp3,
     is_mp3_format,
+    is_ogg_format,
 )
 from transcribo_backend.utils.app_config import AppConfig
 
@@ -28,7 +32,16 @@ _SNIFF_BYTES = 1024
 
 
 class WhisperService:
+    """Client for the external Whisper backend that owns the task lifecycle.
+
+    Attributes:
+        app_config: Application configuration (backend URL, API key, upload cap).
+        taskId_to_progressId: Task-to-progress mapping used to enrich status responses.
+        client: Long-lived HTTP client for the Whisper backend.
+    """
+
     def __init__(self, app_config: AppConfig) -> None:
+        """Initialize the service and its long-lived HTTP client."""
         self.app_config = app_config
         one_day = 60 * 60 * 24
         self.taskId_to_progressId: TTLCache[str, str] = TTLCache[str, str](maxsize=1024, ttl=one_day)
@@ -57,24 +70,27 @@ class WhisperService:
         Returns:
             TaskStatus: The current status of the task
         """
-        if task_id not in self.taskId_to_progressId:
-            raise HTTPException(status_code=404, detail="Task not found")
         url = self._task_endpoint(f"status?task_id={task_id}")
-        progress_url = f"{self.app_config.whisper_url}/progress/{self.taskId_to_progressId[task_id]}"
 
-        # Get the status of the transcription task
+        # Whisper is the source of truth for the task itself, so a 404 must stay an
+        # error: the route maps it to "Task not found", which a synthetic FAILED status
+        # would hide (an unknown task and a failed transcription are not the same thing).
         response = await self.client.get(url)
-        if response.status_code == 404:
-            return TaskStatus(task_id=task_id, status=TaskStatusEnum.FAILED)
         response.raise_for_status()
 
-        progress_response = await self.client.get(progress_url)
-        if progress_response.status_code == 404:
-            raise HTTPException(status_code=404, detail="Progress not found")
-        progress_response.raise_for_status()
+        # The in-memory progress mapping only enriches the status and may legitimately
+        # be gone (result already fetched once, or backend restart) while the task
+        # still exists — only this optional lookup tolerates a 404.
+        progress: float | None = None
+        progress_id = self.taskId_to_progressId.get(task_id)
+        if progress_id is not None:
+            progress_url = f"{self.app_config.whisper_url}/progress/{progress_id}"
+            progress_response = await self.client.get(progress_url)
+            if progress_response.status_code != 404:
+                progress_response.raise_for_status()
+                progress = ProgressResponse(**progress_response.json()).progress
 
-        progress = ProgressResponse(**progress_response.json())
-        return TaskStatus(**response.json(), progress=progress.progress)
+        return TaskStatus(**response.json(), progress=progress)
 
     @future_safe
     async def transcribe_get_task_result(self, task_id: str) -> TranscriptionResponse:
@@ -103,6 +119,8 @@ class WhisperService:
             segment.text = segment.text.replace("ß", "ss")
             segment.speaker = segment.speaker or "Unknown"
             segment.speaker = segment.speaker.strip().capitalize()
+            for word in segment.words or []:
+                word.word = word.word.replace("ß", "ss")
 
         return transcription
 
@@ -162,7 +180,7 @@ class WhisperService:
         vad_filter: bool,
         diarization: bool,
         diarization_speaker_count: int | None,
-        timestamp_granularities: str,
+        timestamp_granularities: Sequence[str],
         extra: dict[str, Any],
     ) -> dict[str, Any]:
         """Build the multipart form fields for a submit request (no I/O)."""
@@ -173,7 +191,7 @@ class WhisperService:
             "model": model,
             "progress_id": progress_id,
             "response_format": response_format.value,
-            "timestamp_granularities[]": timestamp_granularities,
+            "timestamp_granularities": json.dumps(list(timestamp_granularities)),
             "temperature": str(temperature),
             "vad_filter": str(vad_filter),
             "diarization": str(diarization),
@@ -189,19 +207,27 @@ class WhisperService:
         return data
 
     @staticmethod
-    def _resolve_mp3_path(input_path: str) -> tuple[str, str | None]:
+    def _resolve_upload_path(input_path: str) -> tuple[str, str | None, str, str]:
         """
-        Ensure the audio at ``input_path`` is MP3, converting if needed.
+        Ensure the audio at ``input_path`` is a format the Whisper worker decodes.
 
-        Returns ``(upload_path, converted_path)`` where ``converted_path`` is the
-        ffmpeg output that the caller must delete, or ``None`` if no conversion happened.
+        MP3 and Ogg (Opus from the client) pass through untouched — re-encoding
+        Ogg to MP3 would add a lossy generation that degrades VAD/diarization.
+        Everything else is converted to MP3.
+
+        Returns ``(upload_path, converted_path, filename, content_type)`` where
+        ``converted_path`` is the ffmpeg output that the caller must delete, or
+        ``None`` if no conversion happened.
         """
         # Sniff only the leading bytes instead of loading the whole file.
         with open(input_path, "rb") as fh:
             header = fh.read(_SNIFF_BYTES)
 
+        if is_ogg_format(header):
+            return input_path, None, "audio.ogg", "audio/ogg"
+
         if is_mp3_format(header):
-            return input_path, None
+            return input_path, None, "audio.mp3", "audio/mpeg"
 
         # convert_to_mp3 is @impure_safe: failures come back as an IOFailure, so inspect the
         # result instead of calling .unwrap() (which would raise UnwrapFailedError, not the
@@ -211,12 +237,14 @@ class WhisperService:
             error = result.failure()._inner_value
             raise HTTPException(status_code=400, detail=f"Audio conversion failed: {error}") from error
         converted_path: str = result.unwrap()._inner_value
-        return converted_path, converted_path
+        return converted_path, converted_path, "audio.mp3", "audio/mpeg"
 
-    async def _post_submit(self, url: str, data: dict[str, Any], upload_path: str) -> TaskStatus:
-        """Stream the MP3 file from disk to the Whisper API and parse the response."""
+    async def _post_submit(
+        self, url: str, data: dict[str, Any], upload_path: str, filename: str, content_type: str
+    ) -> TaskStatus:
+        """Stream the audio file from disk to the Whisper API and parse the response."""
         with open(upload_path, "rb") as upload_fh:
-            files = {"file": ("audio.mp3", upload_fh, "audio/mpeg")}
+            files = {"file": (filename, upload_fh, content_type)}
             response = await self.client.post(url, data=data, files=files)
         response.raise_for_status()
         return TaskStatus(**response.json())
@@ -228,12 +256,12 @@ class WhisperService:
         model: str = "large-v2",
         language: str | None = None,
         prompt: str | None = None,
-        response_format: ResponseFormat = ResponseFormat.JSON_DIARIZED,
+        response_format: ResponseFormat = ResponseFormat.VERBOSE_JSON,
         temperature: float | list[float] | None = None,
         vad_filter: bool = True,
         diarization: bool = True,
         diarization_speaker_count: int | None = None,
-        timestamp_granularities: str = "segment",
+        timestamp_granularities: Sequence[str] = ("word", "segment"),
         max_upload_bytes: int | None = None,
         **kwargs: Any,
     ) -> TaskStatus:
@@ -254,6 +282,7 @@ class WhisperService:
             vad_filter: Whether to use voice activity detection
             diarization: Whether to separate speakers
             diarization_speaker_count: Number of speakers to separate
+            timestamp_granularities: Timestamp levels to populate
             max_upload_bytes: Hard cap on accepted upload size in bytes
             **kwargs: Additional parameters to pass to the API
 
@@ -286,8 +315,10 @@ class WhisperService:
             await self._stream_upload_to_disk(audio_file, input_path, max_upload_bytes)
             # Sniffing and the ffmpeg subprocess are blocking (up to the 300s ffmpeg timeout);
             # run them in a worker thread so a single conversion does not stall the event loop.
-            upload_path, converted_path = await asyncio.to_thread(self._resolve_mp3_path, input_path)
-            status = await self._post_submit(url, data, upload_path)
+            upload_path, converted_path, filename, content_type = await asyncio.to_thread(
+                self._resolve_upload_path, input_path
+            )
+            status = await self._post_submit(url, data, upload_path, filename, content_type)
             self.taskId_to_progressId[status.task_id] = progress_id
             return status
         finally:
