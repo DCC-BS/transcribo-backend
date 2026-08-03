@@ -26,7 +26,7 @@ class Summary(BaseModel):
 class SummaryRequest(BaseModel):
     """Request model for summarization endpoint."""
 
-    transcript: str = Field(..., min_length=1, max_length=32_000 * 4, description="Transcript to summarize.")
+    text: str = Field(..., min_length=1, max_length=32_000 * 4, description="Transcript to summarize.")
     summary_type: SummaryType | None = Field(default=None, description="Type of summary to generate.")
     language: Language | None = Field(
         default=None, description="Output language for summary. None = auto-detect from transcript."
