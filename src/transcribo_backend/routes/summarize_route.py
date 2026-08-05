@@ -45,8 +45,7 @@ def create_router(
             )
         # Extract X-Client-Id from the request headers
         usage_tracking_service.log_event(
-            module="summarize_route",
-            func="summarize",
+            "summary.create",
             user_id=x_client_id or "unknown",
             transcript_length=len(request.text),
         )

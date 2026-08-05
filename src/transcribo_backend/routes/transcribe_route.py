@@ -4,6 +4,7 @@ from http import HTTPStatus
 from typing import Annotated, Any
 
 import httpx
+import structlog.contextvars
 from dcc_backend_common.fastapi_error_handling import ApiErrorCodes, api_error_exception
 from dcc_backend_common.logger import get_logger
 from dcc_backend_common.usage_tracking import UsageTrackingService
@@ -86,6 +87,10 @@ def create_router(  # noqa: C901
         the user's confirmed vocabulary (from earlier transcriptions) so
         post-processing can prefer those spellings.
         """
+        # So the post-processing llm_call lines carry task_id and can be joined
+        # to the app_event logged at submit time.
+        structlog.contextvars.bind_contextvars(task_id=task_id)
+
         result = await whisper_service.transcribe_get_task_result(task_id)
         transcription: TranscriptionResponse = _unwrap_or_raise(
             result,
@@ -152,14 +157,6 @@ def create_router(  # noqa: C901
                 debugMessage="File is too large",
             )
 
-        usage_tracking_service.log_event(
-            module="transcribe_route",
-            func="transcribe",
-            user_id=x_client_id or "unknown",
-            num_speakers=num_speakers,
-            file_size=audio_file.size,
-        )
-
         # Submit the transcription task. The file is streamed to disk and forwarded to
         # Whisper without ever being fully loaded into memory.
         try:
@@ -173,7 +170,17 @@ def create_router(  # noqa: C901
             await audio_file.close()
 
         if isinstance(result, IOSuccess):
-            return result.unwrap()._inner_value
+            task_status: TaskStatus = result.unwrap()._inner_value
+            # task_id is the join key to the llm_call lines emitted later by the
+            # result endpoint, which runs under a different request_id.
+            usage_tracking_service.log_event(
+                "transcription.submit",
+                user_id=x_client_id or "unknown",
+                num_speakers=num_speakers,
+                file_size=audio_file.size,
+                task_id=task_status.task_id,
+            )
+            return task_status
 
         # Custom error mapping (instead of the shared _unwrap_or_raise helper) because submit
         # can fail with rate-limit (429) and oversized-upload (413) HTTPExceptions that need

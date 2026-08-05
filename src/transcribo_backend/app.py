@@ -122,7 +122,7 @@ def create_app() -> FastAPI:
         FastAPI: Configured FastAPI application instance
     """
 
-    init_logger()
+    init_logger(app_name="transcribo")
 
     logger = get_logger("app")
     logger.info("Starting Transcribo API")
@@ -138,7 +138,9 @@ def create_app() -> FastAPI:
     _register_health_routes(app=app, config=config)
 
     _configure_cors(app=app, client_url=config.client_url, logger=logger)
-    add_logging_middleware(app)
+    # Status polls run for the whole lifetime of a transcription and would
+    # drown real usage events in request_finished lines.
+    add_logging_middleware(app, excluded_paths={"/health", "/task/{task_id}/status"})
     _register_routes(app=app, logger=logger)
 
     logger.info("API setup complete")
