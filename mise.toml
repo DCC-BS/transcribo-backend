@@ -1,0 +1,100 @@
+[tools]
+"npm:varlock" = "1.13.0"
+pass-cli = "latest"
+python = "3.13"
+usage = "3.5.6"
+uv = "0.11.31"
+
+[plugins]
+pass-cli = "https://github.com/DCC-BS/mise-proton-pass-cli"
+
+[hooks]
+postinstall = { task = "install" }
+enter = { task = "enter-checks" }
+
+# ── Setup ───────────────────────────────────────────────────────────────────
+
+[tasks.install]
+description = "Create the virtual environment and install the pre-commit hooks"
+alias = "i"
+sources = ["pyproject.toml", "uv.lock"]
+outputs = [".venv", ".git/hooks/pre-commit"]
+run = [
+    "uv sync",
+    "uv run pre-commit install",
+]
+
+[tasks.env-check]
+description = "Load secrets into the environment via varlock"
+alias = "env"
+depends = ["pass-login"]
+run = "varlock load"
+
+# ── Run ─────────────────────────────────────────────────────────────────────
+
+[tasks.dev]
+description = "Run the FastAPI dev server with auto-reload"
+alias = "d"
+depends = ["env-check"]
+run = "./scripts/run-varlock.sh run -- uv run --env-file .env fastapi dev ./src/transcribo_backend/app.py --port 8000"
+
+[tasks.run]
+description = "Run the production ASGI server (uvicorn)"
+alias = "r"
+depends = ["env-check"]
+run = "./scripts/run-varlock.sh run -- uv run uvicorn transcribo_backend.app:app --port 8000 --no-access-log"
+
+# ── Quality ─────────────────────────────────────────────────────────────────
+
+[tasks.check]
+description = "Verify lockfile, format code, lint, and type-check"
+alias = "c"
+run = [
+    "uv lock --locked",
+    "uv run ruff format",
+    "uv run ruff check --fix",
+    "uv run ty check",
+    "varlock scan",
+]
+
+[tasks.test]
+description = "Run the unit test suite (including doctests)"
+alias = "t"
+env = { APP_MODE = "ci" }
+run = "uv run python -m pytest --doctest-modules"
+
+[tasks.integration]
+description = "Run integration tests (requires WHISPER_BACKEND_URL)"
+run = "uv run python -m pytest -m integration tests/integration"
+
+[tasks.ci-check]
+description = "Verify lockfile, format code, lint, and type-check without modifying files"
+run = [
+    "uv lock --locked",
+    "uv run ruff format --check",
+    "uv run ruff check",
+    "uv run ty check",
+    "varlock scan",
+]
+
+[tasks.ci]
+description = "Run all CI checks (lock, format, lint, types, tests)"
+depends = ["ci-check", "test"]
+
+# ── Docker ──────────────────────────────────────────────────────────────────
+
+[tasks."docker:up"]
+description = "Start docker compose services in the background"
+alias = "up"
+depends = ["pass-login"]
+run = "./scripts/run-varlock.sh run -- docker compose up -d"
+
+[tasks."docker:down"]
+description = "Stop and remove docker compose containers"
+alias = "down"
+run = "docker compose down"
+
+[tasks."docker:logs"]
+description = "Tail docker compose logs (follow mode)"
+alias = "logs"
+run = "docker compose logs -f"
