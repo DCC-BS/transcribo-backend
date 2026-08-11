@@ -57,7 +57,7 @@ run = [
     "varlock scan",
 ]
 
-[tasks.test]
+[tasks."test:unit"]
 description = "Run the unit test suite (including doctests)"
 alias = "t"
 env = { APP_MODE = "ci" }
@@ -79,7 +79,7 @@ run = [
 
 [tasks.ci]
 description = "Run all CI checks (lock, format, lint, types, tests)"
-depends = ["ci-check", "test"]
+depends = ["ci-check", "test:unit"]
 
 # ── Docker ──────────────────────────────────────────────────────────────────
 
