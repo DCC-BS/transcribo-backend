@@ -47,8 +47,8 @@ dev = [
 ]
 
 [tool.uv]
-exclude-newer = "1 week"
-exclude-newer-package = { dcc-backend-common= "P0D" }
+exclude-newer = "P7D"
+exclude-newer-package = { dcc-backend-common = "P0D" }
 
 [build-system]
 requires = ["hatchling"]

@@ -1,20 +1,18 @@
 name: Main
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
 
 env:
-  APP_MODE: "ci"
+    APP_MODE: "ci"
 
 jobs:
-  backend-ci:
-    uses: DCC-BS/ci-workflows/.github/workflows/python-backend-ci.yml@6d1cca8023e197f6e9cda5e64f3b3f0448f4cf6e # v9
-    with:
-      python_versions: '["3.10","3.11","3.12","3.13"]'
-      quality_python_version: "3.12"
-      check_command: "make check"
+    backend-ci:
+        uses: DCC-BS/ci-workflows/.github/workflows/ci.yml@d64a5d501aaee55d37be82405e03812862d43474
+        with:
+            check-command: "mise run ci-check"
