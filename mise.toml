@@ -1,5 +1,5 @@
 [tools]
-"npm:varlock" = "1.13.0"
+"github:dmno-dev/varlock" = "1.13.0"
 pass-cli = "latest"
 python = "3.13"
 usage = "3.5.6"
@@ -19,10 +19,16 @@ description = "Create the virtual environment and install the pre-commit hooks"
 alias = "i"
 sources = ["pyproject.toml", "uv.lock"]
 outputs = [".venv", ".git/hooks/pre-commit"]
-run = [
-    "uv sync",
-    "uv run pre-commit install",
-]
+run = '''
+if [ "${DOCKER_BUILD:-}" = "1" ]; then
+    # In Docker: locked, no dev deps. The Dockerfile sets DOCKER_BUILD=1.
+    uv sync --locked --no-dev
+else
+    # Locally: dev deps + pre-commit hooks.
+    uv sync
+    uv run pre-commit install
+fi
+'''
 
 [tasks.env-check]
 description = "Load secrets into the environment via varlock"

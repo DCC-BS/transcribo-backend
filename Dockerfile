@@ -1,60 +1,74 @@
-# Stage 1: Builder
-FROM python:3.13-alpine AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /uvx /bin/
+# check=skip=SecretsUsedInArgOrEnv
+# The build stage runs on the shared mise base image (ghcr.io/dcc-bs/dcc-docker-images/mise)
+# which provides the toolchain and the `assemble-runtime` script. Python is managed by
+# uv itself (pinned by `requires-python` in pyproject.toml). The runtime image only carries
+# python + varlock, so the python version lives in exactly one place: pyproject.toml.
+
+# Stage 1: Build the application
+FROM ghcr.io/dcc-bs/dcc-docker-images/mise:13-slim AS build
+
+# Optional GitHub token to raise the API rate limit when mise resolves the
+# `github:dmno-dev/varlock` release. Unauthenticated builds are limited to 60
+# requests/hour per IP, which can break fresh builds/CI. Pass it with:
+#   docker build --build-arg GITHUB_TOKEN=<token> .
+# A fine-grained token with no scopes is sufficient. Omit for local builds.
+ARG GITHUB_TOKEN=""
+ENV GITHUB_TOKEN="${GITHUB_TOKEN}"
 
 ENV APP_MODE=build
+ENV DOCKER_BUILD=1
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV UV_HTTP_TIMEOUT=120
+# uv installs its own python here; a stable path so the runtime copy below
+# never hardcodes the python version or architecture.
+ENV UV_PYTHON_INSTALL_DIR="/uv-python"
 
+# Set the working directory
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev build-base git protoc protobuf-dev rust cargo
+# Copy source code (the `install` task's `uv sync` installs the project
+# editable, so source must be present before `mise install` runs)
+COPY . .
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Install the pinned toolchain (uv, varlock) from mise.toml. The postinstall
+# hook runs the `install` task, which does `uv sync --locked --no-dev` (because
+# DOCKER_BUILD=1) and auto-installs the python pinned by `requires-python`.
+RUN mise trust -a && mise install
 
-# Install dependencies
-# --locked: Sync with lockfile
-# --no-dev: Exclude development dependencies
-# --no-install-project: Install dependencies only (caching layer)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
+# Assemble a minimal runtime: only python + varlock (drop mise, uv, pass-cli,
+# usage, rust and python headers/tcl-tk/terminfo). Shared logic from the base image.
+RUN assemble-runtime python
 
-# Copy application code
-COPY . /app
+# Stage 2: Run the application
+# ------------------------------------------------
+FROM debian:13-slim
 
-# Sync project
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+# Set the working directory
+WORKDIR /app
 
-# Stage 2: Runtime
-FROM python:3.13-alpine
+# Security: Create and switch to a non-root user
+RUN useradd --create-home --uid 1000 app
 
+# Environment
+ENV APP_MODE=prod
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV APP_MODE=build
 
-WORKDIR /app
+# Runtime python is the one assembled from uv in the build stage
+ENV PATH="/runtime/varlock:/app/.venv/bin:$PATH"
 
-# Install packages with
-RUN apk add --no-cache --allow-untrusted ffmpeg bash libstdc++ || \
-    (apk update && apk add --no-cache ffmpeg bash libstdc++)
+# Copy the built application and the minimal runtime (python + varlock) from
+# the build stage
+COPY --from=build --chown=app:app /app /app
+COPY --from=build --chown=app:app /runtime /runtime
+COPY --chown=app:app .env*.schema /app/
 
-# Create non-root user (Alpine syntax)
-RUN addgroup -S app && adduser -S app -G app
-
-# Copy the environment, but not the source code
-COPY --from=builder --chown=app:app /app /app
-COPY --chown=app:app --chmod=755 entrypoint.sh /app/entrypoint.sh
-COPY --from=ghcr.io/dmno-dev/varlock:latest --chown=app:app /usr/local/bin/varlock /usr/local/bin/varlock
-
-# Enable virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
-
+# Switch to the non-root user
 USER app
 
-ENV APP_MODE=prod
+# Expose the port the app runs on
+EXPOSE 8000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Start the application: load env via varlock, then run uvicorn with the runtime python
+ENTRYPOINT ["/bin/sh", "-c", "varlock load && varlock run -- uvicorn transcribo_backend.app:app --host 0.0.0.0 --port \"${PORT:-8090}\" --no-access-log"]
