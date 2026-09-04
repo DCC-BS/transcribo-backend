@@ -12,7 +12,7 @@ resolution-markers = [
 
 [options]
 exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
-exclude-newer-span = "P1W"
+exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
 dcc-backend-common = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
@@ -531,7 +531,7 @@ wheels = [
 
 [[package]]
 name = "dcc-backend-common"
-version = "0.1.22"
+version = "0.1.23"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "datasets" },
@@ -540,9 +540,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f8/92/9e31914844498b1079fad7cc50365fc4428a2c6692e598bf64015e0458e6/dcc_backend_common-0.1.22.tar.gz", hash = "sha256:203ee5db85c0411a98ddf49026737796621fe4713c64f66ac0fc6cefda6694cb", size = 256801, upload-time = "2026-08-21T12:34:08.328Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/75/3e95ccb1c9c698efc0a97f3f9d7ac49bd4b234ace27215b440cdf4dd2bfb/dcc_backend_common-0.1.23.tar.gz", hash = "sha256:4f771c6d63028d991b3d807e75c0c2220ef3e6c736bd869c086cad363f7a669f", size = 257533, upload-time = "2026-08-21T15:19:33.537Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/51/ab86b2b9f09c50dcb38f9f1fce42c969100b35d923ce85e59caff93395d0/dcc_backend_common-0.1.22-py3-none-any.whl", hash = "sha256:57530416cdbd6b352792c9bebad1fff32ee76df121ca7c35e95c58364ee54729", size = 39460, upload-time = "2026-08-21T12:34:07.131Z" },
+    { url = "https://files.pythonhosted.org/packages/41/b6/87d491fe5c485b1c82b5efec08f56a634ae80068635fd34218c37ecf6ace/dcc_backend_common-0.1.23-py3-none-any.whl", hash = "sha256:b458593c21709e226085be5cc9498e6a2e07f1fae15524b3dc9e1a3ef36f95ac", size = 39785, upload-time = "2026-08-21T15:19:32.475Z" },
 ]
 
 [package.optional-dependencies]
@@ -3042,7 +3042,7 @@ dev = [
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "cachetools", specifier = ">=7.0.1" },
-    { name = "dcc-backend-common", extras = ["pydantic-ai"], specifier = "==0.1.22" },
+    { name = "dcc-backend-common", extras = ["pydantic-ai"], specifier = "==0.1.23" },
     { name = "dependency-injector", specifier = ">=4.48.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.133.1" },
     { name = "griffe", specifier = ">=1.5.0" },
