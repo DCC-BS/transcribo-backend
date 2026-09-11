@@ -2,8 +2,8 @@
 "github:dmno-dev/varlock" = "1.13.0"
 pass-cli = "latest"
 python = "3.14.7"
-usage = "6.4.0"
-uv = "0.12.5"
+usage = "6.5.0"
+uv = "0.12.7"
 
 [plugins]
 pass-cli = "https://github.com/DCC-BS/mise-proton-pass-cli"
