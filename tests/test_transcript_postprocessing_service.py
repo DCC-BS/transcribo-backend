@@ -457,3 +457,58 @@ def test_build_prompt_keeps_the_whole_prompt_within_budget():
     # so keywords can neither overflow the prompt nor starve the transcript.
     assert len(section) <= _MAX_KEYWORDS_CHARS
     assert len(transcript) > _MAX_TRANSCRIPT_CHARS * 0.9
+
+
+def test_place_name_section_is_opt_in():
+    """The extra instruction only appears when place name correction is requested."""
+    segments = [Segment(start=0.0, end=1.0, text="An der Lerchenstrasse.", speaker="S0")]
+
+    assert "Zusätzliche Aufgabe" not in build_postprocessing_prompt(segments)
+    assert "Zusätzliche Aufgabe" in build_postprocessing_prompt(segments, detect_place_names=True)
+
+
+def test_place_name_section_stays_within_budget():
+    """The extra section is charged against the same transcript budget as the keywords."""
+    segments = [Segment(start=float(i), end=float(i + 1), text="x" * 1_000, speaker=f"S{i % 2}") for i in range(200)]
+    keywords = [Keyword(term=f"Term{i}", description="x" * 200, type="object") for i in range(100)]
+
+    prompt = build_postprocessing_prompt(segments, keywords, detect_place_names=True)
+
+    assert len(prompt) <= _MAX_TRANSCRIPT_CHARS
+
+
+def test_correction_spanning_a_segment_boundary_is_applied():
+    """Whisper cuts segments on timing, so a name can straddle the join.
+
+    "Schulhaus St. Alban" arrives as "Schulhaus St." at the end of one segment and
+    "Albern" at the start of the next; matching each segment alone misses it.
+    """
+    segments = [
+        Segment(start=0.0, end=1.0, text="Antikenmuseum Basel, Schulhaus St.", speaker="S0"),
+        Segment(start=1.0, end=2.0, text="Albern, Seevogelschulhaus,", speaker="S0"),
+    ]
+    correction = TranscriptCorrection(
+        original="Schulhaus St. Albern", corrected="Schulhaus St. Alban", reason="", confidence=0.9
+    )
+
+    applied = apply_corrections(segments, [correction])
+
+    assert applied == [correction]
+    assert segments[0].text == "Antikenmuseum Basel, Schulhaus St. Alban"
+    assert segments[1].text == "Seevogelschulhaus,"
+
+
+def test_correction_does_not_touch_segments_it_does_not_match():
+    """Only the segments a correction actually changes may be rewritten."""
+    segments = [
+        Segment(start=0.0, end=1.0, text=", bleibt genau so.", speaker="S0"),
+        Segment(start=1.0, end=2.0, text="Der Homburgtunnel.", speaker="S0"),
+    ]
+
+    apply_corrections(
+        segments,
+        [TranscriptCorrection(original="Homburgtunnel", corrected="Horburgtunnel", reason="", confidence=0.9)],
+    )
+
+    assert segments[0].text == ", bleibt genau so."
+    assert segments[1].text == "Der Horburgtunnel."

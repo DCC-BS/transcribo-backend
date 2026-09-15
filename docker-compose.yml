@@ -1,12 +1,12 @@
 services:
   llm:
     platform: linux/amd64
-    image: vllm/vllm-openai:v0.27.1
+    image: vllm/vllm-openai:v0.29.0
     container_name: llm
     ports:
-      - "${LLM_API_PORT}:${LLM_API_PORT}"
+      - "${LLM_API_PORT:-8001}:${LLM_API_PORT:-8001}"
     environment:
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_TOKEN=${HF_TOKEN:-}
     env_file: ".env"
     runtime: nvidia
     deploy:
@@ -18,14 +18,14 @@ services:
               capabilities: [gpu]
     ipc: host
     volumes:
-      - ${HUGGING_FACE_CACHE_DIR}:/root/.cache/huggingface
+      - ${HUGGING_FACE_CACHE_DIR:-${HOME}/.cache/huggingface}:/root/.cache/huggingface
     command: >
       --port ${LLM_API_PORT}
       --model RedHatAI/gemma-4-31B-it-NVFP4
       --served-model-name Gemma/Gemma-4-31B
       --max-model-len 16000
       --max-num-batched-tokens 4096
-      --gpu-memory-utilization 0.85
+      --gpu-memory-utilization 0.75
       --enable-auto-tool-choice
       --tool-call-parser gemma4
       --chat-template examples/tool_chat_template_gemma4.jinja
@@ -41,7 +41,7 @@ services:
       - "50001:50001"
     env_file: ".env"
     environment:
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_TOKEN=${HF_TOKEN:-}
     deploy:
       resources:
         reservations:

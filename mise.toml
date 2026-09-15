@@ -104,3 +104,7 @@ run = "docker compose down"
 description = "Tail docker compose logs (follow mode)"
 alias = "logs"
 run = "docker compose logs -f"
+
+[tasks."gazetteer:update"]
+description = "Refresh the Basel street-name asset from data.bs.ch"
+run = "uv run python scripts/update_gazetteer.py"

@@ -14,6 +14,10 @@ class TaskResultRequest(BaseModel):
     # every inferred speaker name, so an unbounded list is a cheap way to make the
     # request expensive. Far above any realistic user vocabulary.
     keywords: list[Keyword] = Field(default_factory=list, max_length=500)
+    correct_place_names: bool = Field(
+        default=True,
+        description="Correct Basel street and place names against the official register.",
+    )
 
 
 class Word(BaseModel):

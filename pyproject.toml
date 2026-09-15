@@ -23,6 +23,7 @@ dependencies = [
     "dependency-injector>=4.48.3",
     "fastapi[standard]>=0.133.1",
     "griffe>=1.5.0",
+    "rapidfuzz>=3.14.0",
     "returns>=0.26.0",
 ]
 
