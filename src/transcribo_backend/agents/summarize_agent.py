@@ -49,6 +49,22 @@ Verwende Markdown zur Formatierung mit klaren Abschnitten für Ergebnisse und Ma
 Verwende die gleiche Sprache wie im Transkript. Wenn du unsicher bist, verwende Deutsch.
 """
 
+MANAGEMENT_SUMMARY_INSTRUCTIONS = """
+Du bist ein Experte für Management Summaries.
+Du erhältst ein Transkript einer Besprechung und musst es als Management Summary für Entscheidungsträger zusammenfassen,
+die nicht an der Besprechung teilgenommen haben.
+Sei konkret: Nenne Entscheide, Zahlen, Termine und Verantwortliche. Erfinde nichts und benenne Offenes als offen.
+Lass Gesprächsverlauf, einzelne Wortmeldungen und Nebensächliches weg. Höchstens eine Seite.
+Verwende Markdown mit folgenden Abschnitten und lass leere Abschnitte weg:
+1. Kernaussage
+2. Ausgangslage
+3. Wichtigste Erkenntnisse
+4. Entscheide
+5. Risiken und offene Punkte
+6. Nächste Schritte mit Verantwortlichen und Terminen
+Verwende die gleiche Sprache wie im Transkript. Wenn du unsicher bist, verwende Deutsch.
+"""
+
 DEFAULT_INSTRUCTIONS = """
 You are a meeting summary expert.
 You are given a transcript of a meeting and you need to summarize it.
@@ -79,13 +95,14 @@ class SummarizeAgent(BaseAgent[SummaryDeps, str]):
                 SummaryType.VERHANDLUNGSPROTOKOLL: VERHANDLUNGSPROTOKOLL_INSTRUCTIONS,
                 SummaryType.KURZPROTOKOLL: KURZPROTOKOLL_INSTRUCTIONS,
                 SummaryType.ERGEBNISPROTOKOLL: ERGEBNISPROTOKOLL_INSTRUCTIONS,
+                SummaryType.MANAGEMENT_SUMMARY: MANAGEMENT_SUMMARY_INSTRUCTIONS,
             }
 
             base_instructions = instructions_map.get(summary_type, DEFAULT_INSTRUCTIONS)
 
             if language is not None:
                 language_name = get_language_name(language)
-                language_instruction = f"\n\nVerfasse das Protokoll auf **{language_name}**."
+                language_instruction = f"\n\nVerfasse die Zusammenfassung auf **{language_name}**."
                 return base_instructions + language_instruction
 
             return base_instructions
