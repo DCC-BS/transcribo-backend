@@ -1,7 +1,6 @@
 [tools]
 "github:dmno-dev/varlock" = "1.13.0"
 pass-cli = "latest"
-python = "3.14.7"
 usage = "6.4.0"
 uv = "0.12.5"
 
@@ -93,7 +92,7 @@ depends = ["ci-check", "test:unit"]
 description = "Start docker compose services in the background"
 alias = "up"
 depends = ["pass-login"]
-run = "./scripts/run-varlock.sh run -- docker compose up -d"
+run = "varlock run -- docker compose up -d"
 
 [tasks."docker:down"]
 description = "Stop and remove docker compose containers"
