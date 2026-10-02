@@ -6,7 +6,7 @@ services:
     ports:
       - "${LLM_API_PORT}:${LLM_API_PORT}"
     environment:
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_TOKEN=${HF_TOKEN:-}
     env_file: ".env"
     runtime: nvidia
     deploy:
@@ -18,7 +18,7 @@ services:
               capabilities: [gpu]
     ipc: host
     volumes:
-      - ${HUGGING_FACE_CACHE_DIR}:/root/.cache/huggingface
+      - ${HF_HOME:-${HOME:-/root}/.cache/huggingface}:/root/.cache/huggingface
     command: >
       --port ${LLM_API_PORT}
       --model RedHatAI/gemma-4-31B-it-NVFP4
@@ -41,7 +41,7 @@ services:
       - "50001:50001"
     env_file: ".env"
     environment:
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_TOKEN=${HF_TOKEN:-}
     deploy:
       resources:
         reservations:
