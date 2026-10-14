@@ -73,7 +73,7 @@ async def test_post_processing_assigns_names_and_unifies_variants():
     service = _make_service()
 
     segments = [segment.model_copy(deep=True) for segment in FIXTURE_SEGMENTS]
-    result_io = await service.post_process(segments)
+    result_io = await service.post_process(segments, correct_place_names=False)
     result = result_io.unwrap()._inner_value
 
     # --- speaker assignments ---

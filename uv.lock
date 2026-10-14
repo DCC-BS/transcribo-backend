@@ -2961,6 +2961,7 @@ dependencies = [
     { name = "dependency-injector" },
     { name = "fastapi", extra = ["standard"] },
     { name = "griffe" },
+    { name = "rapidfuzz" },
     { name = "returns" },
 ]
 
@@ -2987,6 +2988,7 @@ requires-dist = [
     { name = "dependency-injector", specifier = ">=4.48.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.133.1" },
     { name = "griffe", specifier = ">=1.5.0" },
+    { name = "rapidfuzz", specifier = ">=3.14.0" },
     { name = "returns", specifier = ">=0.26.0" },
 ]
 

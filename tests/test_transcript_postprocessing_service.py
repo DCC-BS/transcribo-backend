@@ -334,7 +334,7 @@ async def test_post_process_single_call_returns_all():
     service, agent = _make_service(agent_result)
     segments = [Segment(start=0.0, end=1.0, text="Cloudmigrazion ist toll.", speaker="A")]
 
-    result_io = await service.post_process(segments)
+    result_io = await service.post_process(segments, correct_place_names=False)
     result = result_io.unwrap()._inner_value
 
     # One call on the raw labels and uncorrected text.
@@ -362,7 +362,7 @@ async def test_post_process_returns_original_speaker_labels():
     service, agent = _make_service(agent_result)
     segments = [Segment(start=0.0, end=1.0, text="Ich bin Anna.", speaker="Speaker_00")]
 
-    result_io = await service.post_process(segments)
+    result_io = await service.post_process(segments, correct_place_names=False)
     result = result_io.unwrap()._inner_value
 
     # Short label goes out to the model ...
@@ -394,7 +394,7 @@ async def test_post_process_never_changes_segment_count_timestamps_or_words():
         Segment(start=1.5, end=3.0, text="Genau.", speaker="B", words=None),
     ]
 
-    await service.post_process(segments)
+    await service.post_process(segments, correct_place_names=False)
 
     assert len(segments) == 2
     assert [(s.start, s.end, s.speaker) for s in segments] == [(0.0, 1.5, "A"), (1.5, 3.0, "B")]
@@ -409,7 +409,9 @@ async def test_post_process_propagates_agent_failure():
     """An agent error surfaces as an IOFailure instead of raising."""
     service, _ = _make_service(side_effect=RuntimeError("llm down"))
 
-    result_io = await service.post_process([Segment(start=0.0, end=1.0, text="Hallo.", speaker="A")])
+    result_io = await service.post_process(
+        [Segment(start=0.0, end=1.0, text="Hallo.", speaker="A")], correct_place_names=False
+    )
 
     error = result_io.failure()._inner_value
     assert isinstance(error, RuntimeError)
@@ -423,7 +425,7 @@ async def test_post_process_appends_user_keywords_to_prompt():
     segments = [Segment(start=0.0, end=1.0, text="Die Beta Kliniken.", speaker="A")]
     keywords = [Keyword(term="Vita Kliniken", description="Name der Klinikgruppe", type="institution")]
 
-    await service.post_process(segments, keywords=keywords)
+    await service.post_process(segments, keywords=keywords, correct_place_names=False)
 
     expected = "A: Die Beta Kliniken.\n\nUser keywords:\nVita Kliniken: Name der Klinikgruppe"
     agent.run.assert_called_once_with(expected)
@@ -457,3 +459,100 @@ def test_build_prompt_keeps_the_whole_prompt_within_budget():
     # so keywords can neither overflow the prompt nor starve the transcript.
     assert len(section) <= _MAX_KEYWORDS_CHARS
     assert len(transcript) > _MAX_TRANSCRIPT_CHARS * 0.9
+
+
+def test_place_name_section_is_opt_in():
+    """The extra instruction only appears when place name correction is requested."""
+    segments = [Segment(start=0.0, end=1.0, text="An der Lerchenstrasse.", speaker="S0")]
+
+    assert "Zusätzliche Aufgabe" not in build_postprocessing_prompt(segments)
+    assert "Zusätzliche Aufgabe" in build_postprocessing_prompt(segments, detect_place_names=True)
+
+
+def test_place_name_section_stays_within_budget():
+    """The extra section is charged against the same transcript budget as the keywords."""
+    segments = [Segment(start=float(i), end=float(i + 1), text="x" * 1_000, speaker=f"S{i % 2}") for i in range(200)]
+    keywords = [Keyword(term=f"Term{i}", description="x" * 200, type="object") for i in range(100)]
+
+    prompt = build_postprocessing_prompt(segments, keywords, detect_place_names=True)
+
+    assert len(prompt) <= _MAX_TRANSCRIPT_CHARS
+
+
+def test_correction_spanning_a_segment_boundary_is_applied():
+    """Whisper cuts segments on timing, so a name can straddle the join.
+
+    "Schulhaus St. Alban" arrives as "Schulhaus St." at the end of one segment and
+    "Albern" at the start of the next; matching each segment alone misses it.
+    """
+    segments = [
+        Segment(start=0.0, end=1.0, text="Antikenmuseum Basel, Schulhaus St.", speaker="S0"),
+        Segment(start=1.0, end=2.0, text="Albern, Seevogelschulhaus,", speaker="S0"),
+    ]
+    correction = TranscriptCorrection(
+        original="Schulhaus St. Albern", corrected="Schulhaus St. Alban", reason="", confidence=0.9
+    )
+
+    applied = apply_corrections(segments, [correction])
+
+    assert applied == [correction]
+    assert segments[0].text == "Antikenmuseum Basel, Schulhaus St. Alban"
+    assert segments[1].text == "Seevogelschulhaus,"
+
+
+def test_correction_does_not_touch_segments_it_does_not_match():
+    """Only the segments a correction actually changes may be rewritten."""
+    segments = [
+        Segment(start=0.0, end=1.0, text=", bleibt genau so.", speaker="S0"),
+        Segment(start=1.0, end=2.0, text="Der Homburgtunnel.", speaker="S0"),
+    ]
+
+    apply_corrections(
+        segments,
+        [TranscriptCorrection(original="Homburgtunnel", corrected="Horburgtunnel", reason="", confidence=0.9)],
+    )
+
+    assert segments[0].text == ", bleibt genau so."
+    assert segments[1].text == "Der Horburgtunnel."
+
+
+def test_correction_spanning_several_segments_empties_the_middle_one():
+    """A name cut into three pieces is rebuilt in the first and removed from the others."""
+    segments = [
+        Segment(start=0.0, end=1.0, text="Wir treffen uns am St.", speaker="S0"),
+        Segment(start=1.0, end=2.0, text="Johanns", speaker="S0"),
+        Segment(start=2.0, end=3.0, text="Tohr, um neun.", speaker="S0"),
+    ]
+    correction = TranscriptCorrection(
+        original="St. Johanns Tohr", corrected="St. Johanns-Tor", reason="", confidence=0.9
+    )
+
+    assert apply_corrections(segments, [correction]) == [correction]
+    assert [segment.text for segment in segments] == ["Wir treffen uns am St. Johanns-Tor", "", "um neun."]
+
+
+def test_correction_inside_a_segment_keeps_its_leading_punctuation():
+    """Separators are only dropped where a spanning match pulled text away."""
+    segments = [Segment(start=0.0, end=1.0, text=", beim Homburgtunnel.", speaker="S0")]
+
+    apply_corrections(
+        segments,
+        [TranscriptCorrection(original="Homburgtunnel", corrected="Horburgtunnel", reason="", confidence=0.9)],
+    )
+
+    assert segments[0].text == ", beim Horburgtunnel."
+
+
+def test_control_characters_in_the_transcript_do_not_break_corrections():
+    """Segment text is arbitrary model output; no character may be reserved."""
+    segments = [
+        Segment(start=0.0, end=1.0, text="Ein\x00Fehler", speaker="S0"),
+        Segment(start=1.0, end=2.0, text="Der Homburgtunnel.", speaker="S0"),
+    ]
+
+    apply_corrections(
+        segments,
+        [TranscriptCorrection(original="Homburgtunnel", corrected="Horburgtunnel", reason="", confidence=0.9)],
+    )
+
+    assert [segment.text for segment in segments] == ["Ein\x00Fehler", "Der Horburgtunnel."]
