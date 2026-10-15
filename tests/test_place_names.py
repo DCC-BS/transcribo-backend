@@ -1,9 +1,11 @@
 """Tests for the Basel place name register lookup."""
 
+import httpx
 import pytest
 
 from transcribo_backend.models.keywords import Keyword
-from transcribo_backend.services.place_names import canonical, corrections_for, match
+from transcribo_backend.services import place_names
+from transcribo_backend.services.place_names import canonical, corrections_for, match, parse_streets, refresh_streets
 
 
 def location(term: str) -> Keyword:
@@ -75,3 +77,64 @@ def test_match_does_not_extend_a_name_into_a_longer_one(term: str) -> None:
 
 def test_match_still_repairs_a_name_that_shares_a_prefix() -> None:
     assert match("Schulhaus Lehematt") == ("Schulhaus Lehenmatt", pytest.approx(0.971, abs=0.01))
+
+
+def streets_csv(*names: str) -> str:
+    return "﻿strassenname\n" + "\n".join(names) + "\n"
+
+
+def client_returning(status: int, text: str = "") -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(status, text=text)))
+
+
+@pytest.fixture
+def restore_register():
+    """refresh_streets swaps module state; put the bundled list back afterwards."""
+    yield
+    place_names._current = None
+
+
+def test_parse_streets_drops_bom_blanks_and_duplicates() -> None:
+    assert sorted(parse_streets(streets_csv("Adlerstrasse", "", "Adlerstrasse", " Zürcherstrasse "))) == [
+        "Adlerstrasse",
+        "Zürcherstrasse",
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("restore_register")
+async def test_refresh_streets_replaces_the_list() -> None:
+    streets = [f"Teststrasse {i}" for i in range(1_000)] + ["Quokkaweg"]
+
+    await refresh_streets(client_returning(200, streets_csv(*streets)))
+
+    assert match("Quokaweg") == ("Quokkaweg", pytest.approx(0.94, abs=0.01))
+    # Object names are curated separately and survive the refresh.
+    assert match("Sevokelschulhaus") is not None
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("restore_register")
+@pytest.mark.parametrize(
+    "client",
+    [
+        pytest.param(client_returning(503), id="server error"),
+        pytest.param(client_returning(200, streets_csv("Quokkaweg")), id="too short"),
+    ],
+)
+async def test_refresh_streets_keeps_the_old_list_on_failure(client: httpx.AsyncClient) -> None:
+    await refresh_streets(client)
+
+    assert match("Bahnhof Rien") == ("Bahnhof Riehen", pytest.approx(1.0, abs=0.2))
+    assert match("Quokaweg") is None
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("restore_register")
+async def test_refresh_streets_keeps_the_old_list_when_unreachable() -> None:
+    def unreachable(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(request.url.host, request=request)
+
+    await refresh_streets(httpx.AsyncClient(transport=httpx.MockTransport(unreachable)))
+
+    assert match("Homburgtunnel") is not None

@@ -1,5 +1,5 @@
 # Basler Strassennamen, Open-Data-Datensatz 100189 (data.bs.ch).
-# Generiert - nicht von Hand bearbeiten: 'mise run gazetteer:update'.
+# Startwert bis zum ersten Download; zur Laufzeit täglich neu geladen (place_names.py).
 Achilles Bischoff-Strasse
 Ackermätteli
 Ackerstrasse
