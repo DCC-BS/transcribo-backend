@@ -104,7 +104,9 @@ def create_router(  # noqa: C901
         # transcription is still valid without it, so a failure only logs a
         # warning.
         post = await transcript_postprocessing_service.post_process(
-            transcription.segments, keywords=request.keywords or None
+            transcription.segments,
+            keywords=request.keywords or None,
+            correct_place_names=request.correct_place_names,
         )
         if isinstance(post, IOSuccess):
             result_value = post.unwrap()._inner_value

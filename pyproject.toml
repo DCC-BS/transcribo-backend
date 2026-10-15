@@ -1,6 +1,6 @@
 [project]
 name = "transcribo-backend"
-version = "2.0.3"
+version = "2.1.0"
 description = "The backend of the transcribo app"
 authors = [{name = "Data Competence Center Basel-Stadt", email = "dcc@bs.ch" },{ name = "Tobias Bollinger", email = "tobias.bollinger@bs.ch" }, { name = "Yanick Schraner", email = "yanick.schraner@bs.ch" }]
 readme = "README.md"
@@ -23,6 +23,7 @@ dependencies = [
     "dependency-injector>=4.48.3",
     "fastapi[standard]>=0.133.1",
     "griffe>=1.5.0",
+    "rapidfuzz>=3.14.0",
     "returns>=0.26.0",
 ]
 

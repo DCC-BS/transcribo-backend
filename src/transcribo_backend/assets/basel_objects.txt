@@ -1,0 +1,498 @@
+# Basler Objektnamen (Schulhäuser, Kirchen, Brunnen, Fähren, Tunnel, Spitäler, Höfe …).
+# Von Hand gepflegt: für Objektnamen gibt es keinen Open-Data-Datensatz.
+Affenbrunnen
+Arbeitsamt-Brunnen
+Augustinerbrunnen
+Brunnen. a.d. Waisenhausmauer
+Faule Magd - Brunnen
+Fischmarktbrunnen
+Galerie Gellerthochhaus
+Grabeneckbrunnen
+Heissensteinbach
+Holbeinbrunnen
+Horburgtunnel
+Jakobusbrunnen
+Klingentalfähre
+Kraftwerk Birsfelden
+Luzernerringtunnel
+Münsterfähre
+Nischenbrunnen
+Oberer Tunnel
+Pisonibrunnen
+Prattelertunnel
+Rebhausbrunnen
+Reservoir
+Rheinbad Breite
+Sammlerbrunnen
+Samson und Delila - Brunnen
+Schöneckbrunnen
+Schwarzadlerbrunnen
+Schwarzwaldtunnel
+Singertunnel
+St. Alban-Fähre
+St. Jakobs-Denkmal
+St. Johanns-Fähre
+St. Johanns-Tunnel
+St. Urbansbrunnen
+Strassburger-Denkmal
+Vierlindenbrunnen
+Vrenelibrunnen
+Webernbrunnen
+Wettsteinbrunnen
+Museum der Kulturen Basel
+Naturhistorisches Museum Basel
+Münster
+Schulhaus zur Mücke
+Domhof
+Gerichtsgebäude
+Antikenmuseum Basel
+St. Alban-Kirche
+Schulhaus Letzi
+Schulhaus St. Alban
+Sevogelschulhaus
+Don Bosco-Kirche
+Sommercasino
+Luftmattschulhaus
+Güterbahnhof Wolf
+St. Jakobskirche
+Freies Gymnasium
+Zeughaus
+Bethesda-Spital
+Gellertschulhaus
+Christoph Merian-Schulhaus
+Gellertkirche
+Kant. Arbeitsamt
+Waisenhauskirche
+Theodors-Schulhaus
+Theodorskirche
+Clarakirche
+Clara-Schulhaus
+Wettsteinschulhaus
+Thomas Platter-Schulhaus
+Richter Linder-Schulhaus
+Allgemeine Gewerbeschule
+Vogelsang-Schulhaus
+Claraspital
+St. Michaelskirche
+Schulhaus Bäumlihof
+Hirzbrunnenschulhaus
+St. Elisabethenkirche
+Schulhaus De Wette
+Thiersteiner-Schulhaus
+Heiliggeistkirche
+Zwinglihaus
+Brunnmattschulhaus
+Schulhaus Hohe Winde
+Tituskirche
+Wasserturm
+Rudolf Steiner-Schule
+Kunstmuseum Basel
+Stadttheater
+Gartenbad Eglisee
+Walderholungsheim
+Schulhaus Schoren
+Badischer Bahnhof DB
+Matthäuskirche
+Bläsi-Schulhaus
+Theobald Baerwart-Schulhaus
+Dreirosen-Schulhaus
+St. Josephskirche
+Insel-Schulhaus
+Berowergut
+Fondation Beyeler
+St. Franziskuskirche
+Schulhaus Steingrubenweg
+Schulhaus Erlensträsschen
+Bahnhof Riehen
+Post Riehen
+Gemeindehaus
+Musikschule Riehen
+Niederholzschulhaus
+Hebelschulhaus
+Wasserstelzenschulhaus
+Kornfeldkirche
+Schulhaus Burgstrasse
+Schulhaus Bettingen
+Kleinhüningerkirche
+Schulhaus Kleinhüningen
+Schulhaus Ackermätteli
+Tramdepot Wiesenplatz
+Wendelstörferhof Weisses Haus
+Alte Universität
+Martinskirche
+Reichensteinerhof Blaues Haus
+Rathaus
+Staatsarchiv
+Alte Hauptpost
+Stadtcasino
+Barfüsserkirche
+Leonhardskirche
+Schulhaus am Kohlenberg
+Leonhards-Schulhaus
+Holbein-Schulhaus I
+Holbein-Schulhaus II
+Missione Cattolica Italiana
+Synagoge
+St. Marienkirche
+Sacré Coeur
+Pauluskirche
+Allerheiligenkirche
+Schulhaus Kaltbrunnen
+Schulhaus Neubad Nord
+Schulhaus Neubad Süd
+Margarethen-Schulhaus
+Gundeldinger-Schulhaus
+Petersschulhaus
+Vesalianum
+Gewerbeschule
+Kollegiengebäude
+Gericht für Strafsachen
+Feuerwache
+Musik-Akademie
+Feuerschützenhaus
+Merian Iselin-Spital
+Gottfried Keller-Schulhaus
+Gotthelf-Schulhaus
+Wasgenring-Schulhaus II
+Wasgenring-Schulhaus I
+Thomaskirche
+Isaak Iselin-Schulhaus
+Oekolampad-Haus
+Missionshaus
+Peterskirche
+Predigerkirche
+Universitätsspital Basel
+Bernoullianum
+St. Johanns-Tor
+Pestalozzi-Schulhaus
+St. Johanns-Schulhaus
+Schulhaus Vogesen
+Physik - Gebäude
+Anatomie-Gebäude
+Chemie-Gebäude
+Augenspital
+Antoniuskirche
+St. Johanneskirche
+Kehrichtverbrennungsanlage
+Spalentor
+Bürgerliches Waisenhaus
+Lohnhof
+Sportplatz Grendelmatten
+Familiengärten
+Sportanlage Bäumlihof
+Dorfkirche Riehen
+Kirche St. Chrischona
+Gartenbad Bettingen
+Schulhaus Drei Linden
+Schulhaus Bruderholz
+Schulhaus Lehenmatt
+REHAB Basel
+Felix Platter-Spital
+Univer. Psych. Klinik
+Chrischonaklinik
+Adullam
+Klinik Sonnenrain
+Schmerzklinik Kirschgarten
+Klinik Sonnenhalde
+Rialto
+St. Jakobs-Park
+Sportplatz Buschweilerhof
+Sportplatz Schorenmatte
+Rheinbad St. Johann
+Bahnhof Basel SNCF
+Bahnhof Basel SBB
+Kongresszentrum
+Volkshaus
+Reischacherhof
+Gundeldingercasino
+Kleines Klingental
+St. Alban-Tor
+Tramdepot Morgartenring
+BVB Hauptwerkstätte
+Bässlergut
+Museum für Gegenwartskunst
+Papiermuseum
+Kunsthalle
+Historisches Museum Basel
+Kath.-Apostolische Gem.
+Klingentalkirche
+Pfefferhof
+Domprobstei
+Heuslersches Haus
+Stegreifmühle
+Gallizianmühle
+Schindelhof
+Sausenberg
+Zum Geist
+Zur Fortuna
+Zum Zank
+Zur schwarzen Pfanne
+Rheinhof
+Wildensteinerhof
+Gesellschaft zum hohen Dolder
+Schöneck
+St. Alban-Eck
+Pfarrhaus St. Alban
+Hohes Haus
+Zum Sonnenluft
+Zum Luft
+Zum goldenen Stauffen
+Zum Rappenfels
+Zu den vier Häusern
+Zum Selbviert
+Zem Wildemann
+Zu guldin Critz
+Kleiner Markgräflerhof
+Augustinerhof
+Zur hohen Tannen
+Zur Kapelle
+Zur St. Johanns-Kapelle
+Rollerhof
+Kleiner Rollerhof
+Zum Burghof
+Zum Venedig
+Zum Fälkli
+Zum weissen Bär
+Baslerhof
+Eben-Ezer-Halle
+Glöcklihof
+Bäumlihof
+Neues Wettsteinhaus
+Wettsteinhaus
+De Barysches Landgut
+Haus Zum Tschäck
+Wenkenhof
+Meierhof
+Mattenhof
+Kleiner Wenkenhof
+Klösterli
+Landvogtei
+Diakonissenanstalt
+Le Grandsches Landgut
+Mohrhalde
+Fischerhaus
+Zum Jagberg
+Zum Rebstock
+Jos des Zimmermanns Hus
+Zur Himmelspforte
+Zum Silberberg
+Hebels Geburtshaus
+Bockstecherhof
+Zum Sessel
+Zum niedern Reinach
+Kartause
+Engelhof
+Theater Küchlin
+Zum schwarzen Rad
+Zum schwarzen Widder
+Bärenfelserhof
+Füglistaller
+Urs Graf-Haus
+Stadthaus
+Singerhaus
+Faeschsches Haus
+Haus zum neuen Singer
+Alter Salmen
+Mueshus
+Zur Rose
+Spalenhof
+Zum Dolder
+Zum Haupt
+Abdankungskapelle
+Deutschordenskapelle
+Olsbergerhof
+Vorderer Ramsteinerhof
+Zur hohen Sonne
+Ritterhof
+Eptingerhof
+Zum Delphin
+Ramsteinerhof
+Bischofshof
+Stehlins Hus
+Zum Torstübli
+Zum Klösterlin
+Zum Riehenteich
+Zum Enker
+Zum Brauer
+St. Oswald Pfruendhus
+Zur Augenweide
+Augustinerschütte
+Zum kleinen Sündenfall
+Zur alten Trotte
+Haus Speiser-Hauser
+Zum Lamm
+Wildtsches Haus
+Zum Graben-Eck
+Stachelschützenhaus
+Pfarrhaus St. Peter
+Bethwyler
+Marthastift
+Zum Samson
+Zerkindenhof
+Silbernagelhaus
+Zu St. Peters-Berg
+Flachsländerhof
+Zum Dionysius
+Pfaffenhof
+Offenburgerhof
+Andlauerhof
+Schönkindhof
+Zum Steineck
+Ringelhof
+Zum Reinach
+Zum Rosenfels
+Schönes Haus
+Schöner Hof
+Bienzsches Haus
+Zur Platte
+Reinacherhof
+Schule auf Burg
+Mentelinshof
+Zum Engelskopf
+Falkensteinerhof
+Regisheimerhof
+Lesegesellschaft
+Unter den Linden
+Auf Burg
+Zum niederen Hohenberg
+Zum oberen Freiburg
+St. Alban-Stift
+Zur hohen Eiche
+Ehrenfelserhof
+Eisenburg
+Geltenzunft
+Berri-Haus
+Hattstätterhof
+Pfarrhaus
+Pfarrhaus zum Ölenberg
+Hotel Les Trois Rois
+Zum Laufenburg
+Seidenhof
+Fischerhaus Kleinhüningen
+Wettsteinhäuschen
+Kirschgarten
+Kleiner Kirschgarten
+Schlüsselzunft
+Zum Steblin
+Schilthof
+Villa Ulmenhof
+Villa Burckhardt-Merian
+Zum Löwenzorn
+Zur Gemse
+Zum Liebenstein
+Spiesshof
+Zur Schüren
+Zunfthaus zu Safran
+Café Spitz
+Restaurant Warteck
+Thomas Platter-Haus
+Ryhinersches Landhaus
+Markgräflerhof
+Zum Gyren Garten
+Brunnschwilersches Landhaus
+Alumneum
+Holsteinerhof
+Zum Mörsberg
+Zum Waldshut
+Zum Helfenberg
+Zum Engelberg
+Zum Breisach
+Zum oberen Aarau
+Frey Grynaeisches Institut
+Zur Rothenburg
+Zum Scherben
+Villa Hirzbrunnen
+Siechenhäuser
+St. Antonierhof
+Inneres Klösterli
+Formonterhof
+Zur Bannwartshütte
+Erlacherhof
+Zem guldin Horn
+Zum kleinen Ulm
+Zum mittleren Ulm
+Beichtigerhus
+Krugsches Fideikommisshaus
+Moneo Building
+Lampugnani Building
+Maki Building
+Krischanitz Building
+Taniguchi Building
+Gehry Building
+Chipperfield Building
+Ando Building
+Sanaa Building
+Maerkli Building
+Klinikum 1
+Schifferhaus
+Markthalle
+Zum Raben
+Vorderes Gundeldingen
+Pfarrhaus Kleinhüningen
+Tscheggenbürlins Hus
+Im Rosgarten
+Zur Sandgrube
+Hohenfirstenhof
+Zum hohen Pfeiler
+Rhein
+Siza Building
+Souto de Moura-Building
+Aubach
+Riehenteich
+Alter Teich
+Sportplatz Rankhof
+Bettingerbach
+Birs
+Birsig
+Dorenbach
+Mühleteich
+Neuer Teich
+Sportanlage Ciba-Geigy
+St. Albanteich
+Weilmühleteich
+Wiesentalbahn
+Hafenbecken II
+Hafenbecken I
+Wiese
+Sportplatz Landauer
+Sportplatz Hörnli
+Juan Navarro Baldeweg Building
+Rahul Mehrotra Building
+Autobahn A3
+Autobahn A2 / A3
+Herzog & de Meuron Building
+Schulhaus Sandgrube
+Garten der Alten Universität
+Rümelinbach
+Immenbächli
+Lampibach
+Spittelmattbach
+Wildschutzkanal
+Schifflikanal
+Otterbach
+Sportzentrum Schützenmatte
+Kirche Bettingen
+Israelitischer Friedhof
+Gartenbad Bachgraben
+Zoologischer Garten
+Hinter der Strasse
+Hinterer Hundsbuckel
+Klosterfiechten
+Hintere Wanne
+In der Hölle
+Auf dem Hundsbuckel
+In zwölf Jucharten
+Jakobsbergerhölzli
+Jakobsbergerholz
+Wolf-Gottesacker
+Landhof
+Lange Erlen
+Tierpark Lange Erlen
+Egliseeholz
+Botanischer Garten
+In den Weingärten
+Friedhof am Hörnli
+Auf den obern Wenkenmatten
+Bettingertäli
+Eisweiher
+Sarasinpark

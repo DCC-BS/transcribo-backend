@@ -1,9 +1,11 @@
 """Post-processing of a transcript: title, speaker names, corrections, keywords."""
 
 import re
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Iterable
 from difflib import SequenceMatcher
+from itertools import accumulate
 
 from returns.future import future_safe
 
@@ -13,6 +15,7 @@ from transcribo_backend.models.speaker_assignment import SpeakerNameAssignment
 from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
 from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment
+from transcribo_backend.services.place_names import corrections_for
 
 # Same bound as the summarize endpoint, keeps the LLM call within context.
 _MAX_TRANSCRIPT_CHARS = 32_000 * 4
@@ -43,7 +46,6 @@ _MIN_MARK_TOKEN_LENGTH = 4
 
 # Marks the gap where the middle of an over-long transcript was dropped.
 _ELISION_LINE = "[…]"
-
 
 # Fallback label for segments the diarizer left unattributed. whisper_service
 # applies the same default upstream; this is the guard for segments that never
@@ -191,6 +193,30 @@ def _boundary_pattern(surface_form: str) -> re.Pattern[str]:
     return re.compile(rf"(?<!\w){re.escape(surface_form)}(?!\w)")
 
 
+def _replace_across_segments(texts: list[str], pattern: re.Pattern[str], replacement: str) -> bool:
+    """Replace ``pattern`` in ``texts`` read as one space-joined string, in place.
+
+    A match spanning a join is written into the segment it starts in; the later
+    segments it covered lose the matched part and the separator it leaves behind.
+    Returns whether anything was replaced.
+    """
+    starts = list(accumulate((len(text) + 1 for text in texts[:-1]), initial=0))
+    matches = list(pattern.finditer(" ".join(texts)))
+    # Back to front, so the offsets of earlier matches stay valid.
+    for match in reversed(matches):
+        first = bisect_right(starts, match.start()) - 1
+        last = bisect_right(starts, match.end() - 1) - 1
+        head = texts[first][: match.start() - starts[first]]
+        if first == last:
+            texts[first] = head + replacement + texts[first][match.end() - starts[first] :]
+            continue
+        texts[first] = head + replacement
+        for covered in range(first + 1, last):
+            texts[covered] = ""
+        texts[last] = texts[last][match.end() - starts[last] :].lstrip(" ,;")
+    return bool(matches)
+
+
 def apply_corrections(
     segments: list[Segment],
     corrections: list[TranscriptCorrection],
@@ -211,6 +237,9 @@ def apply_corrections(
     ``original`` is the model trying to shorten/rewrite content — applying it
     globally would silently drop text, so it is skipped.
     """
+    # Whisper cuts segments on timing, not meaning, so a name can straddle a join
+    # ("Schulhaus St." | "Albern"); matching the joined transcript catches it.
+    texts = [segment.text for segment in segments]
     applied: list[TranscriptCorrection] = []
     for correction in corrections:
         original = correction.original.strip()
@@ -220,15 +249,11 @@ def apply_corrections(
         if _letter_word_count(corrected) < _letter_word_count(original):
             continue
 
-        pattern = _boundary_pattern(original)
-        changed = False
-        for segment in segments:
-            new_text = pattern.sub(corrected, segment.text)
-            if new_text != segment.text:
-                segment.text = new_text
-                changed = True
-        if changed:
+        if _replace_across_segments(texts, _boundary_pattern(original), corrected):
             applied.append(correction)
+
+    for segment, text in zip(segments, texts, strict=True):
+        segment.text = text
     return applied
 
 
@@ -297,12 +322,27 @@ def enumerate_roles(assignments: list[SpeakerNameAssignment]) -> list[SpeakerNam
     return assignments
 
 
+# Without the exclusion the model also returns city and canton names, which the place
+# name lookup then snaps onto Basel streets.
+_PLACE_NAME_SECTION = """
+
+Zusätzliche Aufgabe:
+Liste ALLE lokalen Strassen- und Ortsnamen aus dem Transkript als Keywords mit
+type: "location" - Strassen, Gassen, Wege, Plätze, Quartiere, Gebäude, Schulhäuser,
+Kirchen, Brunnen, Brücken, Tunnel, Fähren und Haltestellen. Gib den Namen exakt so aus,
+wie er im Transkript steht, auch wenn er falsch geschrieben ist.
+Nimm NICHT auf: Namen von Städten, Gemeinden oder Kantonen (z.B. Zürich, Bern, Basel
+selbst), Personennamen, Behörden und Organisationen."""
+
+
 def render_keywords(keywords: list[Keyword] | None) -> list[str]:
     """Render user-confirmed keywords as the ``term: description`` lines the prompt uses."""
     return [f"{entry.term}: {entry.description}" for entry in keywords or []]
 
 
-def build_postprocessing_prompt(segments: list[Segment], keywords: list[Keyword] | None = None) -> str:
+def build_postprocessing_prompt(
+    segments: list[Segment], keywords: list[Keyword] | None = None, detect_place_names: bool = False
+) -> str:
     """Render the full post-processing prompt: transcript plus user keyword section.
 
     Owns the ``_MAX_TRANSCRIPT_CHARS`` budget for the whole prompt, so the bound holds
@@ -312,10 +352,12 @@ def build_postprocessing_prompt(segments: list[Segment], keywords: list[Keyword]
     """
     keyword_lines, _ = _take_lines_within(render_keywords(keywords), _MAX_KEYWORDS_CHARS)
     keywords_section = "\n\nUser keywords:\n" + "\n".join(keyword_lines) if keyword_lines else ""
+    places_section = _PLACE_NAME_SECTION if detect_place_names else ""
+    sections = keywords_section + places_section
     transcript = build_postprocessing_transcript(
-        segments, max_chars=_MAX_TRANSCRIPT_CHARS - len(keywords_section), mark_uncertain=True
+        segments, max_chars=_MAX_TRANSCRIPT_CHARS - len(sections), mark_uncertain=True
     )
-    return transcript + keywords_section
+    return transcript + sections
 
 
 class TranscriptPostProcessingService:
@@ -338,7 +380,11 @@ class TranscriptPostProcessingService:
 
     @future_safe
     async def post_process(
-        self, segments: list[Segment], keywords: list[Keyword] | None = None
+        self,
+        segments: list[Segment],
+        keywords: list[Keyword] | None = None,
+        *,
+        correct_place_names: bool,
     ) -> TranscriptPostProcessingResult:
         """
         Run speaker name/role inference, cleanup, and keyword proposal as ONE
@@ -353,7 +399,7 @@ class TranscriptPostProcessingService:
         inferred title, applied corrections, speaker assignments, and proposed
         keywords.
         """
-        prompt = build_postprocessing_prompt(segments, keywords)
+        prompt = build_postprocessing_prompt(segments, keywords, detect_place_names=correct_place_names)
         result: TranscriptPostProcessingResult = await self.agent.run(prompt)
 
         # Undo the prompt-side label shortening immediately: everything below
@@ -364,7 +410,11 @@ class TranscriptPostProcessingService:
         if keywords:
             assignments = apply_keyword_spellings_to_names(assignments, keywords)
 
-        applied = apply_corrections(segments, result.corrections)
+        corrections = list(result.corrections)
+        if correct_place_names:
+            corrections += corrections_for(result.keywords)
+
+        applied = apply_corrections(segments, corrections)
         assignments = apply_corrections_to_names(assignments, applied)
 
         return TranscriptPostProcessingResult(

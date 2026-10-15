@@ -13,6 +13,7 @@ class SummaryType(Enum):
     VERHANDLUNGSPROTOKOLL = "verhandlungsprotokoll"  # Negotiation/Process Protocol
     KURZPROTOKOLL = "kurzprotokoll"  # Short Protocol
     ERGEBNISPROTOKOLL = "ergebnisprotokoll"  # Result/Decision Protocol
+    MANAGEMENT_SUMMARY = "management_summary"  # Executive summary for decision-makers
 
 
 class Summary(BaseModel):

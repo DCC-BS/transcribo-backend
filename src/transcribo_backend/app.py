@@ -1,7 +1,8 @@
 """FastAPI application factory for the transcribo backend."""
 
+import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from dcc_backend_common.fastapi_error_handling import inject_api_error_handler
 from dcc_backend_common.fastapi_health_probes import health_probe_router
@@ -14,6 +15,7 @@ from structlog.stdlib import BoundLogger
 
 from transcribo_backend.container import Container
 from transcribo_backend.routes import summarize_route, transcribe_route
+from transcribo_backend.services.place_names import keep_streets_fresh
 from transcribo_backend.utils.app_config import AppConfig
 
 
@@ -22,8 +24,13 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Lifespan context manager for startup and shutdown events.
     """
-    # Startup: nothing to do here, container is configured synchronously
+    # Startup: the container is configured synchronously; only the street name
+    # refresh runs in the background.
+    street_refresh = asyncio.create_task(keep_streets_fresh())
     yield
+    street_refresh.cancel()
+    with suppress(asyncio.CancelledError):
+        await street_refresh
     # Shutdown: close resources
     logger = get_logger("app")
     logger.info("Shutting down application, closing resources...")
