@@ -40,7 +40,7 @@ Transcribo Backend is a powerful Python FastAPI service that provides advanced a
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.15 (installed by uv / mise from `requires-python`)
 - uv package manager
 - Docker and Docker Compose (for containerized deployment)
 - Access to OpenAI Whisper API or compatible service
@@ -48,24 +48,23 @@ Transcribo Backend is a powerful Python FastAPI service that provides advanced a
 
 ### Environment Configuration
 
-Create a `.env` file in the project root with the required environment variables:
+Create a `.env` file in the project root from the example and adjust it:
 
-```env
-# Whisper API Configuration
-WHISPER_API=http://localhost:8001
-WHISPER_API_KEY=your_whisper_api_key_here
-
-# LLM API Configuration
-LLM_API=http://localhost:8002
-LLM_API_KEY=your_llm_api_key_here
-
-# Security
-HMAC_SECRET=your_secret_key_here
-
-# Client Configuration (optional)
-CLIENT_PORT=3000
-CLIENT_URL=http://localhost:${CLIENT_PORT}
+```bash
+cp .env.example .env
 ```
+
+Required variables (see `.env.schema` for types and defaults):
+
+| Variable | Purpose |
+|---|---|
+| `LLM_URL`, `LLM_HEALTH_CHECK_URL` | OpenAI-compatible LLM API and its health endpoint |
+| `LLM_MODEL`, `LLM_API_KEY` | Model name and API key for the LLM API |
+| `WHISPER_URL`, `WHISPER_HEALTH_CHECK_URL` | Whisper API and its health endpoint |
+| `CLIENT_URL` | URL of the frontend (CORS) |
+| `HMAC_SECRET` | Secret used to pseudonymize user ids |
+
+Optional: `MAX_UPLOAD_BYTES` (default 2 GiB), `PORT`, `IS_PROD`.
 
 > **Note:** Configure the Whisper API and LLM API endpoints to match your deployment setup.
 
