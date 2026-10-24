@@ -1,31 +1,47 @@
 {
-    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "dependencyDashboard": true,
-    "ignoreTests": true,
-    "extends": ["config:recommended"],
-    "internalChecksFilter": "strict",
-    "minimumReleaseAge": "14 days",
-    "automerge": false,
-    "prConcurrentLimit": 2,
-    "packageRules": [
-        {
-            "matchUpdateTypes": [
-                "minor",
-                "patch",
-                "pin",
-                "digest",
-                "lockFileMaintenance"
-            ],
-            "groupName": "all non-major dependencies",
-            "groupSlug": "all-non-major"
-        },
-        {
-            "matchUpdateTypes": ["major"],
-            "groupName": "all major dependencies",
-            "groupSlug": "all-major"
-        }
-    ],
-    "lockFileMaintenance": {
-        "enabled": false
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "automerge": false,
+  "dependencyDashboard": true,
+  "extends": [
+    "config:recommended"
+  ],
+  "ignoreTests": true,
+  "internalChecksFilter": "strict",
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "minimumReleaseAge": "14 days",
+  "packageRules": [
+    {
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-non-major",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "lockFileMaintenance"
+      ]
+    },
+    {
+      "groupName": "all major dependencies",
+      "groupSlug": "all-major",
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
+      "description": "Updates that need a human (DCC dependency routine hold_majors; 0.x minors count as major) get their own PR",
+      "groupName": "held dependencies",
+      "groupSlug": "held",
+      "matchPackageNames": [
+        "vllm/vllm-openai"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ]
     }
+  ],
+  "prConcurrentLimit": 2
 }
