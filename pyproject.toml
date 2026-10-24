@@ -49,7 +49,9 @@ dev = [
 
 [tool.uv]
 exclude-newer = "P7D"
-exclude-newer-package = { dcc-backend-common = "P0D" }
+# certifi/uv: exempt from the 7-day cooldown so CA-store security fixes (GHSA-6q48-6c7w-9gw2,
+# GHSA-hq85-5cpj-mr62) land right away.
+exclude-newer-package = { dcc-backend-common = "P0D", certifi = "P0D", uv = "P0D" }
 
 [build-system]
 requires = ["hatchling"]
