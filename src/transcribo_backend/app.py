@@ -20,7 +20,7 @@ from transcribo_backend.utils.app_config import AppConfig
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """
     Lifespan context manager for startup and shutdown events.
     """
