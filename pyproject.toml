@@ -48,11 +48,13 @@ dev = [
 ]
 
 [tool.uv]
+# Supply-chain cooldown: only resolve releases older than 7 days.
 exclude-newer = "P7D"
+# TEMPORARY until 2026-10-29: security releases of certifi/uv younger than 7 days. The weekly
+# dependency routine removes these entries once the locked versions are 7 days old.
+exclude-newer-package = { dcc-backend-common = "P0D", certifi = "P0D", uv = "P0D" }
 # certifi/uv: exempt from the 7-day cooldown so CA-store security fixes (GHSA-6q48-6c7w-9gw2,
 # GHSA-hq85-5cpj-mr62) land right away.
-exclude-newer-package = { dcc-backend-common = "P0D", certifi = "P0D", uv = "P0D" }
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
