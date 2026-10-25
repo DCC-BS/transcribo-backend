@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TaskStatusEnum(StrEnum):
@@ -24,7 +24,5 @@ class TaskStatus(BaseModel):
     executed_at: datetime | None = None
     progress: float | None = None
 
-    class Config:
-        """Serialize the status as its plain string value."""
-
-        use_enum_values = True
+    # Serialize the status as its plain string value.
+    model_config = ConfigDict(use_enum_values=True)

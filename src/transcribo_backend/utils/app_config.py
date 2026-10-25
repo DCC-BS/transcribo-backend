@@ -25,7 +25,7 @@ class AppConfig(LlmConfig):
     )
 
     @classmethod
-    def from_env(cls) -> "AppConfig":
+    def from_env(cls) -> AppConfig:
         """Build the config from the environment, raising on missing required vars."""
         llm_base_url: str = get_env_or_throw("LLM_URL")
         llm_health_check_url: str = get_env_or_throw("LLM_HEALTH_CHECK_URL")
