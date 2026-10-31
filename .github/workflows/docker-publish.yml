@@ -8,7 +8,7 @@ permissions:
 
 jobs:
     publish:
-        uses: DCC-BS/ci-workflows/.github/workflows/publish-docker.yml@2d9a1d861a5cc27f571e7a9d6227cf9943c0ba6d
+        uses: DCC-BS/ci-workflows/.github/workflows/publish-docker.yml@a7a5611d4ea9bc55f27ca8bc22327181d0e0cbc0 # v10.0.0
         secrets: inherit
         with:
             project_type: "python" # or "node"
