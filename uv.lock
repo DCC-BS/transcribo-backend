@@ -13,7 +13,6 @@ exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
 dcc-backend-common = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
-pyasn1 = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 
 [[package]]
 name = "agent-detector"

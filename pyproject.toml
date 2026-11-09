@@ -51,10 +51,7 @@ dev = [
 # Supply-chain cooldown: uv only uses distributions uploaded at least 7 days ago.
 exclude-newer = "P7D"
 # dcc-backend-common: our own package(s), always current (permanent).
-# TEMPORARY until 2026-11-03: pyasn1 skips the cooldown (P0D) so the locked security fix 0.6.5
-# (GHSA-2qm8-x737-gmw5, uploaded 2026-10-27) isn't downgraded. The weekly dependency routine removes it
-# once the locked version is 7 days old.
-exclude-newer-package = { dcc-backend-common = "P0D", pyasn1 = "P0D" }
+exclude-newer-package = { dcc-backend-common = "P0D" }
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
