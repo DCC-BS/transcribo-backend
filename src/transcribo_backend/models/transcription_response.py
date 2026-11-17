@@ -1,5 +1,7 @@
 """Request and response models of the transcription endpoints."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from transcribo_backend.models.keywords import Keyword
@@ -58,3 +60,10 @@ class TranscriptionResponse(BaseModel):
     # Proposed keywords of special names/terms for human review. None when
     # post-processing was not attempted or failed.
     keywords: list[Keyword] | None = None
+
+
+class TranscriptionResultFrame(BaseModel):
+    """Last line of the result stream: the finished transcription."""
+
+    type: Literal["result"] = "result"
+    transcription: TranscriptionResponse

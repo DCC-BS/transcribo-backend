@@ -6,6 +6,7 @@ rejected early with 413, unsupported types with 415, and a valid upload is forwa
 the service as an UploadFile (not pre-read bytes).
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 from dcc_backend_common.fastapi_error_handling import inject_api_error_handler
@@ -16,7 +17,7 @@ from starlette.datastructures import UploadFile
 
 from transcribo_backend.models.task_status import TaskStatus
 from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
-from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
+from transcribo_backend.models.transcript_postprocessing import PostProcessingProgress, TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment, TranscriptionResponse, Word
 from transcribo_backend.routes import transcribe_route
 
@@ -32,6 +33,11 @@ def _build_client(whisper_service, usage_service, postprocessing_service=None) -
         )
     )
     return TestClient(app)
+
+
+def _frames(resp) -> list[dict]:
+    """The JSON Lines of a streamed result response."""
+    return [json.loads(line) for line in resp.text.splitlines() if line]
 
 
 def _make_services(max_upload_bytes: int = 50 * 1024 * 1024):
@@ -110,8 +116,11 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
     whisper_service.transcribe_get_task_result = AsyncMock(return_value=IOSuccess(transcription))
 
     postprocessing_service = MagicMock()
-    postprocessing_service.post_process = AsyncMock(
-        return_value=IOSuccess(
+    progress = PostProcessingProgress(stage="keywords", progress=0.5, keywords=3)
+
+    async def post_process(*_args, on_progress, **_kwargs):
+        on_progress(progress)
+        return IOSuccess(
             TranscriptPostProcessingResult(
                 title="Gespräch über Cloudmigration",
                 speaker_assignments=[],
@@ -121,13 +130,18 @@ def test_task_result_preserves_fragments_and_never_leaks_word_level():
                 keywords=[],
             )
         )
-    )
+
+    postprocessing_service.post_process = post_process
 
     client = _build_client(whisper_service, usage_service, postprocessing_service)
     resp = client.post("/task/task-1/result", json={})
 
     assert resp.status_code == 200
-    body = resp.json()
+    frames = _frames(resp)
+    # Progress lines first, the transcription last.
+    assert frames[0] == progress.model_dump(mode="json")
+    assert frames[-1]["type"] == "result"
+    body = frames[-1]["transcription"]
 
     assert len(body["segments"]) == 2
     assert [(s["start"], s["end"]) for s in body["segments"]] == [(0.0, 1.5), (1.5, 3.0)]
@@ -153,7 +167,9 @@ def test_task_result_survives_postprocessing_failure():
     resp = client.post("/task/task-1/result", json={})
 
     assert resp.status_code == 200
-    body = resp.json()
+    (frame,) = _frames(resp)
+    assert frame["type"] == "result"
+    body = frame["transcription"]
     assert len(body["segments"]) == 1
     assert body["speaker_assignments"] is None
     assert body["applied_corrections"] is None

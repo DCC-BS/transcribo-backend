@@ -1,11 +1,21 @@
 """Tests for the Basel place name register lookup."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import httpx
 import pytest
 
+from transcribo_backend.agents.place_name_agent import PlaceNameAgent
 from transcribo_backend.models.keywords import Keyword
+from transcribo_backend.models.place_name_choice import PlaceNameChoice, PlaceNameChoices
 from transcribo_backend.services import place_names
-from transcribo_backend.services.place_names import canonical, corrections_for, match, parse_streets, refresh_streets
+from transcribo_backend.services.place_names import (
+    candidates,
+    canonical,
+    corrections_for,
+    parse_streets,
+    refresh_streets,
+)
 
 
 def location(term: str) -> Keyword:
@@ -25,58 +35,83 @@ def test_canonical_ignores_spelling_conventions(left: str, right: str) -> None:
     assert canonical(left) == canonical(right)
 
 
+def stub_agent(choices: list[PlaceNameChoice] | None = None, error: Exception | None = None) -> MagicMock:
+    """A place name agent that answers with fixed choices, or fails."""
+    agent = MagicMock(spec=PlaceNameAgent)
+    agent.run = AsyncMock(side_effect=error, return_value=PlaceNameChoices(choices=choices or []))
+    return agent
+
+
+async def correct(terms: list[str], agent: MagicMock, transcript: str = "") -> list[tuple[str, str]]:
+    corrections = await corrections_for([location(term) for term in terms], transcript, agent)
+    return [(c.original, c.corrected) for c in corrections]
+
+
 @pytest.mark.parametrize(
     ("heard", "expected"),
     [
         ("Bahnhof Rien", "Bahnhof Riehen"),
         ("Sevokelschulhaus", "Sevogelschulhaus"),
-        ("Homburgtunnel", "Horburgtunnel"),
+        ("Affenbäumen", "Affenbrunnen"),
+        ("Zeltisberger Weglein", "Seltisbergerweglein"),
     ],
 )
-def test_match_repairs_misheard_names(heard: str, expected: str) -> None:
-    hit = match(heard)
-    assert hit is not None
-    assert hit[0] == expected
+def test_candidates_include_the_misheard_name(heard: str, expected: str) -> None:
+    assert expected in candidates(heard)
 
 
-@pytest.mark.parametrize("term", ["Limmatquai", "Sihlcity", "Kapellbrücke"])
-def test_match_leaves_places_outside_basel_alone(term: str) -> None:
-    assert match(term) is None
+def test_candidates_rank_the_name_itself_first_when_it_is_spelled_out() -> None:
+    assert candidates("Sankt Johanns Tor")[0] == "St. Johanns-Tor"
 
 
-def test_match_ignores_terms_too_short_to_discriminate() -> None:
-    assert match("im") is None
+@pytest.mark.parametrize("term", ["im", "Sihlcity"])
+def test_candidates_skip_terms_too_short_or_unlike_any_name(term: str) -> None:
+    assert candidates(term) == []
 
 
-def test_corrections_for_only_considers_locations() -> None:
+@pytest.mark.anyio
+async def test_spelling_variants_are_corrected_without_asking_the_agent() -> None:
+    agent = stub_agent()
+
+    assert await correct(["Sankt Johanns Tor", "Bahnhof Riehen"], agent) == [("Sankt Johanns Tor", "St. Johanns-Tor")]
+    agent.run.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_the_agent_chooses_by_number_and_may_choose_none() -> None:
+    affen = candidates("Affenbäumen").index("Affenbrunnen") + 1
+    agent = stub_agent([PlaceNameChoice(term=1, candidate=affen), PlaceNameChoice(term=2, candidate=None)])
+
+    corrected = await correct(["Affenbäumen", "Rosengarten Bern"], agent, "Wir sitzen am Affenbäumen.")
+
+    assert corrected == [("Affenbäumen", "Affenbrunnen")]
+    assert "Sentence: Wir sitzen am Affenbäumen." in agent.run.call_args.args[0]
+
+
+@pytest.mark.anyio
+async def test_numbers_outside_the_given_terms_and_candidates_are_ignored() -> None:
+    agent = stub_agent([PlaceNameChoice(term=1, candidate=99), PlaceNameChoice(term=7, candidate=1)])
+
+    assert await correct(["Affenbäumen"], agent) == []
+
+
+@pytest.mark.anyio
+async def test_a_failing_agent_leaves_the_terms_as_heard() -> None:
+    agent = stub_agent(error=RuntimeError("model down"))
+
+    assert await correct(["Sankt Johanns Tor", "Affenbäumen"], agent) == [("Sankt Johanns Tor", "St. Johanns-Tor")]
+
+
+@pytest.mark.anyio
+async def test_corrections_only_consider_locations() -> None:
     keywords = [
         Keyword(term="Bahnhof Rien", description="Person", type="person"),
         Keyword(term="Bahnhof Rien", description="Firma", type="institution"),
     ]
-    assert corrections_for(keywords) == []
+    agent = stub_agent()
 
-
-def test_corrections_for_skips_names_already_correct() -> None:
-    assert corrections_for([location("Bahnhof Riehen")]) == []
-
-
-def test_corrections_for_carries_the_score_as_confidence() -> None:
-    corrections = corrections_for([location("Sevokelschulhaus")])
-
-    assert len(corrections) == 1
-    correction = corrections[0]
-    assert correction.original == "Sevokelschulhaus"
-    assert correction.corrected == "Sevogelschulhaus"
-    assert 0.8 <= correction.confidence <= 1.0
-
-
-@pytest.mark.parametrize("term", ["Lehenmatt", "Neubad", "Gundeldinger"])
-def test_match_does_not_extend_a_name_into_a_longer_one(term: str) -> None:
-    assert match(term) is None
-
-
-def test_match_still_repairs_a_name_that_shares_a_prefix() -> None:
-    assert match("Schulhaus Lehematt") == ("Schulhaus Lehenmatt", pytest.approx(0.971, abs=0.01))
+    assert await corrections_for(keywords, "", agent) == []
+    agent.run.assert_not_called()
 
 
 def streets_csv(*names: str) -> str:
@@ -108,9 +143,9 @@ async def test_refresh_streets_replaces_the_list() -> None:
 
     await refresh_streets(client_returning(200, streets_csv(*streets)))
 
-    assert match("Quokaweg") == ("Quokkaweg", pytest.approx(0.94, abs=0.01))
+    assert "Quokkaweg" in candidates("Quokaweg")
     # Object names are curated separately and survive the refresh.
-    assert match("Sevokelschulhaus") is not None
+    assert "Sevogelschulhaus" in candidates("Sevokelschulhaus")
 
 
 @pytest.mark.anyio
@@ -125,8 +160,8 @@ async def test_refresh_streets_replaces_the_list() -> None:
 async def test_refresh_streets_keeps_the_old_list_on_failure(client: httpx.AsyncClient) -> None:
     await refresh_streets(client)
 
-    assert match("Bahnhof Rien") == ("Bahnhof Riehen", pytest.approx(1.0, abs=0.2))
-    assert match("Quokaweg") is None
+    assert "Bahnhof Riehen" in candidates("Bahnhof Rien")
+    assert "Quokkaweg" not in candidates("Quokaweg")
 
 
 @pytest.mark.anyio
@@ -137,4 +172,4 @@ async def test_refresh_streets_keeps_the_old_list_when_unreachable() -> None:
 
     await refresh_streets(httpx.AsyncClient(transport=httpx.MockTransport(unreachable)))
 
-    assert match("Homburgtunnel") is not None
+    assert "Horburgtunnel" in candidates("Homburgtunnel")

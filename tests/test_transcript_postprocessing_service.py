@@ -1,13 +1,16 @@
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from transcribo_backend.agents.transcript_postprocessing_agent import TRANSCRIPT_POSTPROCESSING_INSTRUCTIONS
 from transcribo_backend.models.keywords import Keyword
+from transcribo_backend.models.place_name_choice import PlaceNameChoice, PlaceNameChoices
 from transcribo_backend.models.speaker_assignment import SpeakerNameAssignment
 from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
-from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
+from transcribo_backend.models.transcript_postprocessing import PostProcessingProgress, TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment, Word
+from transcribo_backend.services.place_names import candidates
 from transcribo_backend.services.transcript_postprocessing_service import (
     _MAX_KEYWORDS_CHARS,
     _MAX_TRANSCRIPT_CHARS,
@@ -40,14 +43,24 @@ def _result_with_title(title: str) -> TranscriptPostProcessingResult:
 def _make_service(
     agent_result: TranscriptPostProcessingResult | None = None,
     side_effect: Exception | None = None,
+    place_choices: list[PlaceNameChoice] | None = None,
 ) -> tuple[TranscriptPostProcessingService, MagicMock]:
-    """Service wired with the single mocked post-processing agent."""
+    """Service wired with the mocked post-processing agent and a place name agent answering ``place_choices``."""
+    answer = (agent_result or _empty_result()).model_dump_json()
+
+    async def stream(_prompt: str, *, delta: bool) -> AsyncIterator[str]:
+        assert delta is False
+        if side_effect is not None:
+            raise side_effect
+        # Growing in small pieces, like the model streams it.
+        for end in range(7, len(answer) + 7, 7):
+            yield answer[:end]
+
     agent = MagicMock()
-    if side_effect is not None:
-        agent.run = AsyncMock(side_effect=side_effect)
-    else:
-        agent.run = AsyncMock(return_value=agent_result or _empty_result())
-    service = TranscriptPostProcessingService(agent)
+    agent.run_stream_text = MagicMock(side_effect=stream)
+    place_agent = MagicMock()
+    place_agent.run = AsyncMock(return_value=PlaceNameChoices(choices=place_choices or []))
+    service = TranscriptPostProcessingService(agent, place_agent)
     return service, agent
 
 
@@ -231,6 +244,39 @@ def test_apply_corrections_skips_content_deleting_pairs():
     assert [c.original for c in applied] == ["22000 CHF"]
 
 
+def test_apply_corrections_joins_words_when_word_count_guard_is_lifted():
+    """Whisper splits compounds; joining onto the official name is the fix, not a deletion."""
+    segments = [Segment(start=0.0, end=1.0, text="Nächster Halt ist Zeltisberger Weglein.", speaker="A")]
+    correction = TranscriptCorrection(
+        original="Zeltisberger Weglein", corrected="Seltisbergerweglein", reason="register", confidence=0.95
+    )
+
+    assert apply_corrections(segments, [correction]) == []
+    assert apply_corrections(segments, [correction], keep_word_count=False) == [correction]
+    assert segments[0].text == "Nächster Halt ist Seltisbergerweglein."
+
+
+@pytest.mark.anyio
+async def test_post_process_joins_split_place_names_but_not_llm_rewrites():
+    """Register corrections may join words; the LLM's own corrections still may not."""
+    agent_result = TranscriptPostProcessingResult(
+        title=None,
+        speaker_assignments=[],
+        corrections=[
+            TranscriptCorrection(original="ist heute", corrected="ist", reason="rewrite", confidence=0.95),
+        ],
+        keywords=[Keyword(term="Zeltisberger Weglein", description="Weg in Basel", type="location")],
+    )
+    seltisberger = candidates("Zeltisberger Weglein").index("Seltisbergerweglein") + 1
+    service, _ = _make_service(agent_result, place_choices=[PlaceNameChoice(term=1, candidate=seltisberger)])
+    segments = [Segment(start=0.0, end=1.0, text="Halt ist heute Zeltisberger Weglein.", speaker="A")]
+
+    result = (await service.post_process(segments, correct_place_names=True)).unwrap()._inner_value
+
+    assert segments[0].text == "Halt ist heute Seltisbergerweglein."
+    assert [c.corrected for c in result.corrections] == ["Seltisbergerweglein"]
+
+
 def test_apply_corrections_formats_phone_email_and_serial():
     """Formatting-rule pairs pass the letter-word guard: phone and serial pairs
     contain no letter words, and the spoken e-mail symbols are exempt."""
@@ -338,7 +384,7 @@ async def test_post_process_single_call_returns_all():
     result = result_io.unwrap()._inner_value
 
     # One call on the raw labels and uncorrected text.
-    agent.run.assert_called_once_with("A: Cloudmigrazion ist toll.")
+    agent.run_stream_text.assert_called_once_with("A: Cloudmigrazion ist toll.", delta=False)
     # Corrections are applied to the segments afterwards.
     assert segments[0].text == "Cloudmigration ist toll."
 
@@ -366,7 +412,7 @@ async def test_post_process_returns_original_speaker_labels():
     result = result_io.unwrap()._inner_value
 
     # Short label goes out to the model ...
-    agent.run.assert_called_once_with("S00: Ich bin Anna.")
+    agent.run_stream_text.assert_called_once_with("S00: Ich bin Anna.", delta=False)
     # ... the original label comes back to the caller.
     assert result.speaker_assignments[0].speaker == "Speaker_00"
     assert segments[0].speaker == "Speaker_00"
@@ -419,6 +465,34 @@ async def test_post_process_propagates_agent_failure():
 
 
 @pytest.mark.anyio
+async def test_post_process_reports_progress_along_the_keyword_list():
+    """Progress follows the transcript position of the latest keyword and never moves back."""
+    agent_result = TranscriptPostProcessingResult(
+        title=None,
+        speaker_assignments=[],
+        corrections=[],
+        keywords=[
+            Keyword(term="Rheinsprung", description="Strasse", type="location"),
+            Keyword(term="Münster", description="Kirche", type="location"),
+            # Earlier in the text than the previous one: must not lower progress.
+            Keyword(term="Rheinsprung", description="Strasse", type="location"),
+        ],
+    )
+    service, _ = _make_service(agent_result)
+    segments = [Segment(start=0.0, end=1.0, text="Vom Rheinsprung hinauf zum Münster", speaker="A")]
+    progress: list[PostProcessingProgress] = []
+
+    await service.post_process(segments, correct_place_names=False, on_progress=progress.append)
+
+    assert progress[0].stage == "speakers"
+    assert progress[-1].stage == "keywords"
+    assert [p.keywords for p in progress if p.stage == "keywords"] == [0, 1, 2, 3]
+    reached = [p.progress for p in progress]
+    assert reached == sorted(reached)
+    assert reached[-1] == 1.0
+
+
+@pytest.mark.anyio
 async def test_post_process_appends_user_keywords_to_prompt():
     """Confirmed keywords are rendered into the prompt as authoritative spellings."""
     service, agent = _make_service()
@@ -428,7 +502,7 @@ async def test_post_process_appends_user_keywords_to_prompt():
     await service.post_process(segments, keywords=keywords, correct_place_names=False)
 
     expected = "A: Die Beta Kliniken.\n\nUser keywords:\nVita Kliniken: Name der Klinikgruppe"
-    agent.run.assert_called_once_with(expected)
+    agent.run_stream_text.assert_called_once_with(expected, delta=False)
 
 
 def test_apply_keyword_spellings_picks_the_closest_term():

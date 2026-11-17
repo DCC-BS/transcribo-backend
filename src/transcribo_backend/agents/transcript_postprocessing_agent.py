@@ -5,7 +5,7 @@ from typing import override
 
 from dcc_backend_common.config.app_config import LlmConfig
 from dcc_backend_common.llm_agent import BaseAgent
-from pydantic_ai import Agent
+from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.models import Model
 
 from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
@@ -131,7 +131,10 @@ class TranscriptPostProcessingAgent(BaseAgent[None, TranscriptPostProcessingResu
         )
         return Agent[None, TranscriptPostProcessingResult](
             model=model,
-            output_type=TranscriptPostProcessingResult,
+            # Native (response_format) rather than tool output: vLLM's gemma4 tool
+            # parser holds a tool call back until it is complete, so a long answer
+            # streams nothing and the gateway times out the silent connection.
+            output_type=NativeOutput(TranscriptPostProcessingResult),
             instructions=instructions,
             # No timeout here: BaseAgent applies LlmConfig.llm_timeout to every run, so
             # repeating it would shadow the env-configurable value with a literal.

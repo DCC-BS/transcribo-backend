@@ -1,5 +1,7 @@
 """Combined output schema of the transcript post-processing agent."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from transcribo_backend.models.keywords import Keyword
@@ -50,3 +52,16 @@ class TranscriptPostProcessingResult(BaseModel):
         if len(title) > _MAX_TITLE_CHARS or not (_MIN_TITLE_WORDS <= len(title.split()) <= _MAX_TITLE_WORDS):
             return None
         return title
+
+
+class PostProcessingProgress(BaseModel):
+    """How far the post-processing agent has got with its answer, read off the stream."""
+
+    type: Literal["progress"] = "progress"
+    # The section of the answer the model is writing; sections follow the field
+    # order of TranscriptPostProcessingResult.
+    stage: Literal["speakers", "corrections", "keywords"]
+    # Share of the transcript the keyword list has reached (keywords follow
+    # transcript order), 0 before the keyword list starts.
+    progress: float = Field(ge=0, le=1)
+    keywords: int = Field(ge=0, description="Keywords proposed so far.")

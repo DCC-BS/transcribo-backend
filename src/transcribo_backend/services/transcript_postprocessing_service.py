@@ -1,19 +1,21 @@
 """Post-processing of a transcript: title, speaker names, corrections, keywords."""
 
+import json
 import re
 from bisect import bisect_right
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from difflib import SequenceMatcher
 from itertools import accumulate
 
 from returns.future import future_safe
 
+from transcribo_backend.agents.place_name_agent import PlaceNameAgent
 from transcribo_backend.agents.transcript_postprocessing_agent import TranscriptPostProcessingAgent
 from transcribo_backend.models.keywords import Keyword
 from transcribo_backend.models.speaker_assignment import SpeakerNameAssignment
 from transcribo_backend.models.transcript_cleanup import TranscriptCorrection
-from transcribo_backend.models.transcript_postprocessing import TranscriptPostProcessingResult
+from transcribo_backend.models.transcript_postprocessing import PostProcessingProgress, TranscriptPostProcessingResult
 from transcribo_backend.models.transcription_response import Segment
 from transcribo_backend.services.place_names import corrections_for
 
@@ -221,6 +223,8 @@ def apply_corrections(
     segments: list[Segment],
     corrections: list[TranscriptCorrection],
     min_confidence: float = _MIN_APPLY_CONFIDENCE,
+    *,
+    keep_word_count: bool = True,
 ) -> list[TranscriptCorrection]:
     """
     Apply high-confidence corrections to the segment texts in place.
@@ -235,7 +239,9 @@ def apply_corrections(
     tokens (``1430 Uhr`` -> ``14:30 Uhr``), so it never lowers the letter-word
     count. A correction whose ``corrected`` has fewer letter words than its
     ``original`` is the model trying to shorten/rewrite content — applying it
-    globally would silently drop text, so it is skipped.
+    globally would silently drop text, so it is skipped. ``keep_word_count=False``
+    lifts that guard for corrections onto official register names: Whisper splits
+    compounds ("Zeltisberger Weglein"), and joining them is the fix, not a deletion.
     """
     # Whisper cuts segments on timing, not meaning, so a name can straddle a join
     # ("Schulhaus St." | "Albern"); matching the joined transcript catches it.
@@ -246,7 +252,7 @@ def apply_corrections(
         corrected = correction.corrected.strip()
         if not original or not corrected or original == corrected or correction.confidence < min_confidence:
             continue
-        if _letter_word_count(corrected) < _letter_word_count(original):
+        if keep_word_count and _letter_word_count(corrected) < _letter_word_count(original):
             continue
 
         if _replace_across_segments(texts, _boundary_pattern(original), corrected):
@@ -360,6 +366,67 @@ def build_postprocessing_prompt(
     return transcript + sections
 
 
+# A completed keyword term in the JSON answer; Keyword is the only model with a "term" field.
+_TERM_PATTERN = re.compile(r'"term"\s*:\s*("(?:[^"\\]|\\.)*")')
+
+
+class _ProgressTracker:
+    """Reads post-processing progress off the JSON answer while it is being written.
+
+    The keyword list is the bulk of a long answer and follows transcript order,
+    so how far into the transcript the latest keyword occurs is a progress
+    measure that does not depend on how many keywords the transcript holds.
+    """
+
+    def __init__(self, segments: list[Segment]):
+        """Initialize the tracker.
+
+        Args:
+            segments: The transcript the keywords are located in.
+        """
+        self._transcript = " ".join(segment.text for segment in segments).lower()
+        self._scanned = 0
+        self._keywords = 0
+        self._reached = 0
+        self._last: PostProcessingProgress | None = None
+
+    def update(self, answer: str) -> PostProcessingProgress | None:
+        """Read the progress of the answer so far.
+
+        Args:
+            answer: The answer as streamed so far.
+
+        Returns:
+            The progress, or None when it has not changed since the last call.
+        """
+        # Only completed terms after the last one counted; a term still being
+        # written fails to match and is picked up by a later call.
+        for match in _TERM_PATTERN.finditer(answer, self._scanned):
+            self._keywords += 1
+            self._scanned = match.end()
+            term = json.loads(match.group(1)).lower()
+            position = self._transcript.find(term)
+            if position >= 0:
+                # Max, not latest: a term found earlier in the text must not move progress back.
+                self._reached = max(self._reached, position + len(term))
+
+        if '"keywords"' in answer:
+            stage = "keywords"
+        elif '"corrections"' in answer:
+            stage = "corrections"
+        else:
+            stage = "speakers"
+        progress = PostProcessingProgress(
+            stage=stage,
+            progress=min(1.0, self._reached / len(self._transcript)) if self._transcript else 0.0,
+            keywords=self._keywords,
+        )
+        if progress == self._last:
+            return None
+        self._last = progress
+        return progress
+
+
 class TranscriptPostProcessingService:
     """Runs the post-processing agent over a transcript and applies its output.
 
@@ -370,13 +437,16 @@ class TranscriptPostProcessingService:
     def __init__(
         self,
         transcript_postprocessing_agent: TranscriptPostProcessingAgent,
+        place_name_agent: PlaceNameAgent,
     ):
         """Initialize the service.
 
         Args:
             transcript_postprocessing_agent: The post-processing agent to run.
+            place_name_agent: Links location keywords to the official Basel names.
         """
         self.agent = transcript_postprocessing_agent
+        self.place_name_agent = place_name_agent
 
     @future_safe
     async def post_process(
@@ -385,6 +455,7 @@ class TranscriptPostProcessingService:
         keywords: list[Keyword] | None = None,
         *,
         correct_place_names: bool,
+        on_progress: Callable[[PostProcessingProgress], None] | None = None,
     ) -> TranscriptPostProcessingResult:
         """
         Run speaker name/role inference, cleanup, and keyword proposal as ONE
@@ -395,12 +466,30 @@ class TranscriptPostProcessingService:
 
         The returned correction pairs are applied deterministically to the
         segment texts (and to the inferred names, so a misheard surname
-        unified in the text follows in the assignment too). Returns the
-        inferred title, applied corrections, speaker assignments, and proposed
-        keywords.
+        unified in the text follows in the assignment too).
+
+        Args:
+            segments: The transcript; corrections are applied to it in place.
+            keywords: User-confirmed vocabulary, rendered into the prompt.
+            correct_place_names: Also detect Basel place names and correct them
+                against the official register.
+            on_progress: Receives progress while the model streams its answer.
+
+        Returns:
+            The inferred title, applied corrections, speaker assignments, and
+            proposed keywords.
         """
         prompt = build_postprocessing_prompt(segments, keywords, detect_place_names=correct_place_names)
-        result: TranscriptPostProcessingResult = await self.agent.run(prompt)
+        tracker = _ProgressTracker(segments)
+        answer = ""
+        # Text rather than run_stream_output: partial structured outputs only
+        # validate once an entry is complete, which is too coarse for progress.
+        # The answer is schema-constrained JSON (NativeOutput), validated below.
+        async for answer in self.agent.run_stream_text(prompt, delta=False):
+            progress = tracker.update(answer)
+            if progress is not None and on_progress is not None:
+                on_progress(progress)
+        result = TranscriptPostProcessingResult.model_validate_json(answer)
 
         # Undo the prompt-side label shortening immediately: everything below
         # this line, and everything the route returns, deals in real labels.
@@ -410,11 +499,12 @@ class TranscriptPostProcessingService:
         if keywords:
             assignments = apply_keyword_spellings_to_names(assignments, keywords)
 
-        corrections = list(result.corrections)
+        applied = apply_corrections(segments, result.corrections)
         if correct_place_names:
-            corrections += corrections_for(result.keywords)
-
-        applied = apply_corrections(segments, corrections)
+            # After the model's own corrections: its keyword terms are spelled as in the corrected text.
+            transcript = " ".join(segment.text for segment in segments)
+            places = await corrections_for(result.keywords, transcript, self.place_name_agent)
+            applied += apply_corrections(segments, places, keep_word_count=False)
         assignments = apply_corrections_to_names(assignments, applied)
 
         return TranscriptPostProcessingResult(
