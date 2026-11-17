@@ -15,6 +15,7 @@ import os
 
 import pytest
 
+from transcribo_backend.agents.place_name_agent import PlaceNameAgent
 from transcribo_backend.agents.transcript_postprocessing_agent import TranscriptPostProcessingAgent
 from transcribo_backend.models.transcription_response import Segment
 from transcribo_backend.services.transcript_postprocessing_service import TranscriptPostProcessingService
@@ -31,7 +32,7 @@ pytestmark = [
 
 def _make_service() -> TranscriptPostProcessingService:
     config = AppConfig.from_env()
-    return TranscriptPostProcessingService(TranscriptPostProcessingAgent(config))
+    return TranscriptPostProcessingService(TranscriptPostProcessingAgent(config), PlaceNameAgent(config))
 
 
 # Speaker task: self-introduction (SPEAKER_00), direct address with response

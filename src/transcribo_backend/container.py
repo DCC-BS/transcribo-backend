@@ -3,6 +3,7 @@
 from dcc_backend_common.usage_tracking import UsageTrackingService
 from dependency_injector import containers, providers
 
+from transcribo_backend.agents.place_name_agent import PlaceNameAgent
 from transcribo_backend.agents.summarize_agent import SummarizeAgent
 from transcribo_backend.agents.transcript_postprocessing_agent import TranscriptPostProcessingAgent
 from transcribo_backend.services.summarization_service import SummarizationService
@@ -46,7 +47,13 @@ class Container(containers.DeclarativeContainer):
         config=app_config,
     )
 
+    place_name_agent: providers.Singleton[PlaceNameAgent] = providers.Singleton(
+        PlaceNameAgent,
+        config=app_config,
+    )
+
     transcript_postprocessing_service: providers.Singleton[TranscriptPostProcessingService] = providers.Singleton(
         TranscriptPostProcessingService,
         transcript_postprocessing_agent=transcript_postprocessing_agent,
+        place_name_agent=place_name_agent,
     )

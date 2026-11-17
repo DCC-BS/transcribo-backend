@@ -1,5 +1,7 @@
 """Transcription API routes: submit, status, result, retry, cancel."""
 
+import asyncio
+from collections.abc import AsyncIterator
 from http import HTTPStatus
 from typing import Annotated, Any
 
@@ -10,14 +12,29 @@ from dcc_backend_common.logger import get_logger
 from dcc_backend_common.usage_tracking import UsageTrackingService
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Form, Header, HTTPException, UploadFile
-from returns.io import IOSuccess
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from returns.io import IOResult, IOSuccess
 
 from transcribo_backend.container import Container
 from transcribo_backend.helpers.file_type import is_audio_file, is_video_file
 from transcribo_backend.models.task_status import TaskStatus
-from transcribo_backend.models.transcription_response import TaskResultRequest, TranscriptionResponse
+from transcribo_backend.models.transcript_postprocessing import (
+    PostProcessingProgress,
+    TranscriptPostProcessingResult,
+)
+from transcribo_backend.models.transcription_response import (
+    TaskResultRequest,
+    TranscriptionResponse,
+    TranscriptionResultFrame,
+)
 from transcribo_backend.services.transcript_postprocessing_service import TranscriptPostProcessingService
 from transcribo_backend.services.whisper_service import WhisperService
+
+
+def _json_line(model: BaseModel) -> str:
+    """Render one record of a JSON Lines response."""
+    return model.model_dump_json() + "\n"
 
 
 def _is_not_found_error(error: Exception) -> bool:
@@ -81,16 +98,23 @@ def create_router(  # noqa: C901
         )
 
     @router.post("/task/{task_id}/result")
-    async def get_task_result(task_id: str, request: TaskResultRequest) -> TranscriptionResponse:
+    async def get_task_result(task_id: str, request: TaskResultRequest) -> StreamingResponse:
         """
         Endpoint to get the result of a task by task_id. The request carries
         the user's confirmed vocabulary (from earlier transcriptions) so
         post-processing can prefer those spellings.
+
+        The response is JSON Lines: PostProcessingProgress lines while the LLM
+        post-processing runs, then one TranscriptionResultFrame. Streaming keeps
+        bytes flowing during a long post-processing call, which a gateway would
+        otherwise cut off as an idle connection.
         """
         # So the post-processing llm_call lines carry task_id and can be joined
         # to the app_event logged at submit time.
         structlog.contextvars.bind_contextvars(task_id=task_id)
 
+        # Fetched before the stream starts, so a missing task still fails with a
+        # proper status code instead of inside a 200 stream.
         result = await whisper_service.transcribe_get_task_result(task_id)
         transcription: TranscriptionResponse = _unwrap_or_raise(
             result,
@@ -100,24 +124,45 @@ def create_router(  # noqa: C901
             task_id=task_id,
         )
 
-        # LLM post-processing (cleanup, keywords, speaker names). The
-        # transcription is still valid without it, so a failure only logs a
-        # warning.
-        post = await transcript_postprocessing_service.post_process(
-            transcription.segments,
-            keywords=request.keywords or None,
-            correct_place_names=request.correct_place_names,
-        )
-        if isinstance(post, IOSuccess):
-            result_value = post.unwrap()._inner_value
-            transcription.title = result_value.title
-            transcription.applied_corrections = result_value.corrections
-            transcription.speaker_assignments = result_value.speaker_assignments
-            transcription.keywords = result_value.keywords
-        else:
-            logger.warning("Transcript post-processing failed", task_id=task_id, exc_info=post.failure()._inner_value)
+        progress: asyncio.Queue[PostProcessingProgress | None] = asyncio.Queue()
 
-        return transcription
+        async def post_process() -> IOResult[TranscriptPostProcessingResult, Exception]:
+            return await transcript_postprocessing_service.post_process(
+                transcription.segments,
+                keywords=request.keywords or None,
+                correct_place_names=request.correct_place_names,
+                on_progress=progress.put_nowait,
+            )
+
+        async def frames() -> AsyncIterator[str]:
+            post_task = asyncio.create_task(post_process())
+            # None marks the end; it is queued after every progress update.
+            post_task.add_done_callback(lambda _: progress.put_nowait(None))
+            try:
+                while (update := await progress.get()) is not None:
+                    yield _json_line(update)
+                post = await post_task
+            finally:
+                # A client that disconnects mid-stream must not keep the LLM call running.
+                post_task.cancel()
+
+            # LLM post-processing (cleanup, keywords, speaker names). The
+            # transcription is still valid without it, so a failure only logs a
+            # warning and the transcription is sent as it came from Whisper.
+            if isinstance(post, IOSuccess):
+                result_value = post.unwrap()._inner_value
+                transcription.title = result_value.title
+                transcription.applied_corrections = result_value.corrections
+                transcription.speaker_assignments = result_value.speaker_assignments
+                transcription.keywords = result_value.keywords
+            else:
+                logger.warning(
+                    "Transcript post-processing failed", task_id=task_id, exc_info=post.failure()._inner_value
+                )
+            yield _json_line(TranscriptionResultFrame(transcription=transcription))
+
+        # X-Accel-Buffering: nginx-based proxies would otherwise hold the lines back.
+        return StreamingResponse(frames(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"})
 
     @router.post("/transcribe")
     async def submit_transcribe(
